@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import time
 
-from can.base import CANFrame
+from can_bus.base import CANFrame
 
 
 @dataclass
@@ -12,7 +12,6 @@ class MotorState:
     current: float = 0.0        # A
     temperature: float = 0.0   # degC
     fault_code: int = 0
-    timestamp: float = 0.0
 
 
 class MotorDriverBase(ABC):
@@ -43,11 +42,7 @@ class MotorDriverBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def make_torque_command_frame(self, torque_nm: float) -> CANFrame:
-        raise NotImplementedError
-
-    @abstractmethod
-    def make_position_command_frame(self, position_rad: float, velocity_rad_s: float = 0.0) -> CANFrame:
+    def make_mit_command_frame(self, position_rad: float, velocity_rad_p_s: float = 0.0, kp_nm_p_rad: float = 0.0, kd_nm_s_p_rad: float = 0.0, feedforward_torque_nm: float = 0.0) -> CANFrame:
         raise NotImplementedError
 
     @abstractmethod

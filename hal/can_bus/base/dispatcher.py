@@ -4,7 +4,7 @@ from collections import defaultdict
 from collections.abc import Callable
 
 from frame import CANFrame
-from types import CANFrameCallback
+from can_types import CANFrameCallback
 
 
 logger = logging.getLogger(__name__)

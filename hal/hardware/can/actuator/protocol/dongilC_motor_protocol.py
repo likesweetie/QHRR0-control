@@ -19,26 +19,6 @@ ENC_HALF = ENC_MOD // 2
 CNT2RAD = 2.0 * math.pi / ENC_MOD
 
 
-def wrap_u14(x: int) -> int:
-    return x & 0x3FFF
-
-
-def shortest_delta_u14(curr_u16: int, prev_u16: int) -> int:
-    """
-    14-bit single-turn encoder count의 wrap-around를 고려한 signed delta count
-    반환 범위: [-8192, 8191] 근처
-    """
-    curr = wrap_u14(curr_u16)
-    prev = wrap_u14(prev_u16)
-
-    delta = curr - prev
-    if delta > ENC_HALF:
-        delta -= ENC_MOD
-    elif delta < -ENC_HALF:
-        delta += ENC_MOD
-    return delta
-
-
 @dataclass
 class OutputAngleEstimator:
     gear_ratio: float
@@ -84,6 +64,75 @@ class OutputAngleEstimator:
         return self.motor_accum_rad
 
 
+@dataclass
+class EncoderData:
+    temp_c: int
+    encoder_position_u16: int   # original - offset
+    encoder_original_u16: int   # raw
+    encoder_offset_u16: int     # stored offset
+
+
+@dataclass
+class MotorUnwrapState:
+    last_enc_u16: Optional[int] = None
+    accum_motor_rad: float = 0.0
+    initialized: bool = False
+
+    def reset(self, enc_u16: int, init_rad: float = 0.0) -> None:
+        self.last_enc_u16 = wrap_u14(enc_u16)
+        self.accum_motor_rad = init_rad
+        self.initialized = True
+
+    def update(self, enc_u16: int) -> float:
+        enc_u16 = wrap_u14(enc_u16)
+
+        if not self.initialized or self.last_enc_u16 is None:
+            self.reset(enc_u16, 0.0)
+            return self.accum_motor_rad
+
+        dcnt = shortest_delta_u14(enc_u16, self.last_enc_u16)
+        self.accum_motor_rad += dcnt * CNT2RAD
+        self.last_enc_u16 = enc_u16
+        return self.accum_motor_rad
+    
+
+
+def wrap_u14(x: int) -> int:
+    return x & 0x3FFF
+
+
+def shortest_delta_u14(curr_u16: int, prev_u16: int) -> int:
+    """
+    14-bit single-turn encoder count의 wrap-around를 고려한 signed delta count
+    반환 범위: [-8192, 8191] 근처
+    """
+    curr = wrap_u14(curr_u16)
+    prev = wrap_u14(prev_u16)
+
+    delta = curr - prev
+    if delta > ENC_HALF:
+        delta -= ENC_MOD
+    elif delta < -ENC_HALF:
+        delta += ENC_MOD
+    return delta
+
+
+@dataclass
+class MITConfig:
+    p_max: float = 12.5
+    v_max: float = 45.0
+    kp_max: float = 500.0
+    kd_max: float = 5.0
+    t_max: float = 33.0
+
+
+@dataclass
+class MotorStatus:
+    temp_c: int
+    iq_counts: int
+    speed_dps: int
+    enc_u16: int
+
 def open_can(iface: str) -> socket.socket:
     sock = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
     sock.bind((iface,))
@@ -125,13 +174,6 @@ def flush_rx(sock: socket.socket, max_frames: int = 256) -> None:
         rx = recv_frame(sock, timeout=0.0)
         if rx is None:
             break
-
-@dataclass
-class EncoderData:
-    temp_c: int
-    encoder_position_u16: int   # original - offset
-    encoder_original_u16: int   # raw
-    encoder_offset_u16: int     # stored offset
 
 
 def u16_to_deg(count: int) -> float:
@@ -232,21 +274,6 @@ def parse_read_encoder_data(payload8: bytes) -> EncoderData:
     )
 
 
-@dataclass
-class MITConfig:
-    p_max: float = 12.5
-    v_max: float = 45.0
-    kp_max: float = 500.0
-    kd_max: float = 5.0
-    t_max: float = 33.0
-
-
-@dataclass
-class MotorStatus:
-    temp_c: int
-    iq_counts: int
-    speed_dps: int
-    enc_u16: int
 
 
 def parse_status_common(payload8: bytes, expected_cmd: int) -> MotorStatus:
@@ -498,25 +525,3 @@ def shortest_delta_u14(curr_u16: int, prev_u16: int) -> int:
     return delta
 
 
-@dataclass
-class MotorUnwrapState:
-    last_enc_u16: Optional[int] = None
-    accum_motor_rad: float = 0.0
-    initialized: bool = False
-
-    def reset(self, enc_u16: int, init_rad: float = 0.0) -> None:
-        self.last_enc_u16 = wrap_u14(enc_u16)
-        self.accum_motor_rad = init_rad
-        self.initialized = True
-
-    def update(self, enc_u16: int) -> float:
-        enc_u16 = wrap_u14(enc_u16)
-
-        if not self.initialized or self.last_enc_u16 is None:
-            self.reset(enc_u16, 0.0)
-            return self.accum_motor_rad
-
-        dcnt = shortest_delta_u14(enc_u16, self.last_enc_u16)
-        self.accum_motor_rad += dcnt * CNT2RAD
-        self.last_enc_u16 = enc_u16
-        return self.accum_motor_rad
