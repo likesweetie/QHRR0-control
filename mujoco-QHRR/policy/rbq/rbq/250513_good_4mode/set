@@ -1,0 +1,81 @@
+  const double alpha = std::clamp(((-0.0 - projected_gravity[2]) / 1.0), 0.0, 1.0);
+        const double beta = std::clamp(((projected_gravity[0]) / 1.0), 0.0, 1.0) * shared_memory_->a_button;
+        // const double alpha = 0.5;
+
+        if ((state_ == TASK_INIT) && (loop_count > 100) && (active_session_->name == "rbq") )
+        {
+            state_ = TASK_RL;
+        }
+        
+        // if ((state_ == TASK_RL) && (projected_gravity[2] > -0.5) && (active_session_->name == "rbq")) 
+        // {
+        //     state_ = TASK_RECOVERY;
+        //     active_session_ = &sessions_[1];
+        //     cur_runner_ = active_session_->runner.get();     
+        //     cur_runner_->reset_observations();
+        // }
+
+        // if ((state_ == TASK_RECOVERY) && (projected_gravity[2] < -0.9) && (active_session_->name == "rbq_recovery")) 
+        // {
+        //     state_ = TASK_RL;
+        //     active_session_ = &sessions_[0];
+        //     cur_runner_ = active_session_->runner.get();     
+        //     cur_runner_->reset_observations();
+
+        // }
+
+
+        cur_runner_ = active_session_->runner.get();     
+
+                
+        std::vector<double> action(nu, 0.0);
+        std::vector<double> action_offset(nu, 0.0);
+
+
+        for (int i = 0; i < nu; ++i) 
+        {
+            action[i] = (default_joint_angle_[i]);
+        }
+
+        if (active_session_->name == "rbq_recovery") 
+        {
+            for (int i = 0; i < nu; ++i) 
+            {
+                action_offset[i] = (shared_memory_->qpos[7 + i]);
+            }
+        }
+        else if (active_session_->name == "rbq" || active_session_->name == "qhrr")
+        {
+
+            std::array<double, 12> stand_joint_pos;
+            std::array<double, 12> quad_joint_pos = {
+                0.0, 0.7, -1.4, 
+                0.0, 0.7, -1.4, 
+                0.0, 0.7, -1.4,
+                0.0, 0.7, -1.4       // KP
+            };
+
+            // 1. stand_joint_pos = default_joint_angle_
+            for (int i = 0; i < nu; ++i)
+            {
+                stand_joint_pos[i] = default_joint_angle_[i];
+            }
+
+            // 2. idx = [2, 3, 6, 7, 10, 11] 만 현재 joint_pos로 덮어쓰기
+            const std::array<int, 6> idx = {0, 1, 2, 3, 4, 5};
+
+            for (const int j : idx)
+            {
+                stand_joint_pos[j] = shared_memory_->qpos[7 + j];
+            }
+
+            // 3. alpha / beta blending
+            for (int i = 0; i < nu; ++i)
+            {
+                const double q = shared_memory_->qpos[7 + i];
+
+                action_offset[i] =
+                    (alpha * 0.75 * (quad_joint_pos[i] - q))
+                + (beta  * 1.2 * (stand_joint_pos[i] - q))
+                + q;
+            }

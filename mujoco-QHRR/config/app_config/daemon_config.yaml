@@ -1,0 +1,56 @@
+shm:
+  name: "/shm0"
+  size_bytes: 1048576   # 1MB
+  create_if_missing: true
+  unlink_on_destroy: true
+
+env:
+  SHM_NAME: "/shm0"
+  KILL_ON_EXIT: false
+
+robots:
+  qhrr:
+    model_path: "../third_party/mujoco/model/one_leg_v2/qhrr0_environment.xml"
+    policy_config_dir: "../config/policy_config/qhrr"
+  rbq:
+    model_path: "../third_party/mujoco/model/rbq10/rbq_environment.xml"
+    policy_config_dir: "../config/policy_config/rbq"
+  qhrr1:
+    model_path: "../third_party/mujoco/model/qhrr1/qhrr1_environment.xml"
+    policy_config_dir: "../config/policy_config/qhrr1"
+
+processes:
+  - name: "mujoco_simulate"
+    exec_path: "./mujoco_simulate"
+    args: []
+    launch_in_terminal: true
+    create_process_group: true
+    wait_after_launch: 0.3
+
+
+  - name: "aux_reader"
+    exec_path: "./aux_reader"
+    args: []
+    launch_in_terminal: true
+    create_process_group: true
+    wait_after_launch: 1.3
+    env:
+      JOYSTICK_DEV: "/dev/input/js0"
+
+
+  - name: "task_controller"
+    exec_path: "./task_controller"
+    args: []
+    launch_in_terminal: true
+    create_process_group: true
+    wait_after_launch: 0.3
+
+  - name: "shm_logger"
+    exec_path: "./shm_logger"
+    args: []
+    launch_in_terminal: true
+    create_process_group: true
+    wait_after_launch: 0.1
+    env:
+      SHM_NAME: "/shm0"
+      SHM_LOG_PATH: "shm_log.csv"

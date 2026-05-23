@@ -1,0 +1,33 @@
+file_path: "../policy/"
+
+num_joint: 3
+
+joint_idx_style: "isaaclab_to_rainbow"
+joint_idx_conversion_isaaclab_to_rainbow:
+  input: [0, 1, 2]
+  output: [0, 1, 2]
+
+# joint_idx_style: "no_conversion"
+# joint_idx_conversion_no_conversion:
+#     input: [0, 1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11]
+#     output: [0, 1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11]
+
+
+#matched to Isaac config order
+default_joint_angle:
+  - 0.0
+  - 0.5
+  - -1.0
+
+scale:
+  dof_pos: 1.0
+  dof_vel: 0.05
+  ang_vel: 0.25
+  lin_vel: 2.0
+  action_scale: 0.25
+
+action_clip : 100
+
+history_length : 0
+
+obs_type : 0
