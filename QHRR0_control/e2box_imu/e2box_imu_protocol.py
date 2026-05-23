@@ -4,7 +4,8 @@ import time
 
 from hal.can_bus import CANFrame
 from hal.hardware.can.imu import IMUProtocolBase
-from hal.hardware.can.imu import IMUState, RobotPoseState
+from hal.hardware.can.imu import IMUState
+from .robot_state import RobotPoseState
 
 
 class E2BoxIMUProtocol(IMUProtocolBase):

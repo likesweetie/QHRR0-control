@@ -1,12 +1,7 @@
+
 from dataclasses import dataclass
 from typing import Optional
-
-
-@dataclass
-class IMUState:
-    quat_xyzw: tuple[float, float, float, float] | None = None
-    angular_velocity_rad_s: tuple[float, float, float] | None = None
-    projected_gravity_b: tuple[float, float, float] | None = None
+from hal.hardware.can.imu.state import IMUState
 
 @dataclass
 class RobotPoseState(IMUState):

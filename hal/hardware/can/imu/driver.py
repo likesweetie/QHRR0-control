@@ -2,60 +2,57 @@ import logging
 import threading
 from copy import deepcopy
 
-from hal.can_bus import CANFrame, CANDaemon
+from hal.can_bus import CANFrame
+from hal.hardware.can.device_driver import CANDeviceDriverBase
+from hal.hardware.can.device_comm_manager import BestEffortCommManager
+
 from imu import IMUProtocolBase
-from imu import IMUState, RobotPoseState
+from imu import RobotPoseState
 
 
 logger = logging.getLogger(__name__)
 
 
-class CANIMUDriver:
+class IMUDriver(CANDeviceDriverBase):
     """
-    Generic IMU driver for CAN-based IMU protocols.
+    Generic CAN IMU driver.
 
-    Responsibilities:
-    - Own IMU protocol
-    - Register CAN RX callbacks to CANDaemon
-    - Send IMU request frames through CANDaemon
-    - Decode received CAN frames using protocol
-    - Maintain latest robot pose state
+    Product-specific details should be implemented in IMUProtocolBase subclasses.
+    This driver only manages:
+    - RX callback
+    - state update
+    - freshness / stale status
+    - request frame generation
     """
 
     def __init__(
         self,
         name: str,
         protocol: IMUProtocolBase,
+        quat_timeout: float,
+        gyro_timeout: float,
     ):
-        self.name = name
-        self.protocol = protocol
+        super().__init__(name=name, protocol=protocol)
+
+        self.quat_comm = BestEffortCommManager(timeout=quat_timeout)
+        self.gyro_comm = BestEffortCommManager(timeout=gyro_timeout)
 
         self._state = RobotPoseState()
         self._lock = threading.Lock()
-
-        self._quat_event = threading.Event()
-        self._gyro_event = threading.Event()
 
     def rx_can_ids(self) -> list[int]:
         return self.protocol.rx_can_ids()
 
     def make_request_quat_frame(self) -> CANFrame:
-        self._quat_event.clear()
         return self.protocol.encode_request_quat()
 
     def make_request_gyro_frame(self) -> CANFrame:
-        self._gyro_event.clear()
         return self.protocol.encode_request_gyro()
 
     def make_request_all_frame(self) -> CANFrame:
-        self._quat_event.clear()
-        self._gyro_event.clear()
         return self.protocol.encode_request_all()
 
     def on_frame(self, frame: CANFrame) -> None:
-        """
-        Callback registered to CANDaemon dispatcher.
-        """
         try:
             partial_state = self.protocol.decode_frame(frame)
         except Exception:
@@ -64,6 +61,7 @@ class CANIMUDriver:
                 self.name,
                 frame.can_id,
             )
+            self._mark_decode_error(frame.can_id)
             return
 
         if partial_state is None:
@@ -77,24 +75,35 @@ class CANIMUDriver:
                 self._state.quat_xyzw = partial_state.quat_xyzw
                 self._state.projected_gravity_b = partial_state.projected_gravity_b
                 self._state.last_quat_t = partial_state.last_quat_t
-                self._quat_event.set()
+                self.quat_comm.mark_rx(partial_state.last_quat_t)
 
             if partial_state.angular_velocity_rad_s is not None:
                 self._state.angular_velocity_rad_s = partial_state.angular_velocity_rad_s
                 self._state.last_gyro_t = partial_state.last_gyro_t
-                self._gyro_event.set()
+                self.gyro_comm.mark_rx(partial_state.last_gyro_t)
+
+    def _mark_decode_error(self, can_id: int) -> None:
+        if can_id in self.protocol.rx_can_ids():
+            # 정확히 quat/gyro ID를 구분하고 싶으면 protocol에 is_quat_id(), is_gyro_id()를 추가하는 것이 좋습니다.
+            self.quat_comm.mark_decode_error()
+            self.gyro_comm.mark_decode_error()
+
+    def update_fault_flags(self) -> None:
+        self.quat_comm.update_fault_flags()
+        self.gyro_comm.update_fault_flags()
+
+    def is_fresh(self) -> bool:
+        quat_status = self.quat_comm.update_fault_flags()
+        gyro_status = self.gyro_comm.update_fault_flags()
+
+        return (not quat_status.is_stale) and (not gyro_status.is_stale)
 
     def get_state(self) -> RobotPoseState:
         with self._lock:
             return deepcopy(self._state)
 
-    def wait_for_quat(self, timeout: float = 0.1) -> bool:
-        return self._quat_event.wait(timeout=timeout)
-
-    def wait_for_gyro(self, timeout: float = 0.1) -> bool:
-        return self._gyro_event.wait(timeout=timeout)
-
-    def wait_for_all(self, timeout: float = 0.1) -> bool:
-        quat_ok = self._quat_event.wait(timeout=timeout)
-        gyro_ok = self._gyro_event.wait(timeout=timeout)
-        return quat_ok and gyro_ok
+    def get_comm_status(self):
+        return {
+            "quat": self.quat_comm.get_status(),
+            "gyro": self.gyro_comm.get_status(),
+        }

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from hal.can_bus import CANFrame
-from .imu_types import IMUState
+from .state import IMUState
 
 
 class IMUProtocolBase(ABC):

@@ -14,11 +14,11 @@ This package exposes the public CAN API:
 
 """hal.can_bus.base package init"""
 
-from base.frame import CANFrame
-from base.bus import CANBus, SocketCANBus
-from base.dispatcher import CANDispatcher
-from base.daemon import CANDaemon
-from base.can_types import CANFrameCallback
+from frame import CANFrame
+from bus import CANBus, SocketCANBus
+from dispatcher import CANDispatcher
+from daemon import CANDaemon
+from can_types import CANFrameCallback
 
 
 __all__ = [

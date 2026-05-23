@@ -1,8 +1,8 @@
 """Public IMU CAN protocol interfaces."""
 
-from .imu_types import IMUState, RobotPoseState
+from .state import IMUState, RobotPoseState
 from .protocol import IMUProtocolBase
-import hal.hardware.can.imu.imu_driver as imu_driver
+import hal.hardware.can.imu.driver as driver
 
 __all__ = [
     "IMUState",
