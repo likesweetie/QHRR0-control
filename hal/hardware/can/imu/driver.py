@@ -1,3 +1,18 @@
+"""
+Generic CAN IMU driver.
+
+This driver is product-independent. Vendor-specific details should be
+implemented in IMUProtocolBase subclasses.
+
+Responsibilities:
+- Provide RX callback entry point.
+- Merge partial decoded IMU state.
+- Track quaternion and gyro freshness separately.
+- Generate request frames through the protocol.
+"""
+
+from __future__ import annotations
+
 import logging
 import threading
 from copy import deepcopy
@@ -6,8 +21,8 @@ from hal.can_bus import CANFrame
 from hal.hardware.can.device_driver import CANDeviceDriverBase
 from hal.hardware.can.device_comm_manager import BestEffortCommManager
 
-from imu import IMUProtocolBase
-from imu import RobotPoseState
+from .protocol import IMUProtocolBase
+from .state import RobotPoseState
 
 
 logger = logging.getLogger(__name__)
@@ -15,14 +30,11 @@ logger = logging.getLogger(__name__)
 
 class IMUDriver(CANDeviceDriverBase):
     """
-    Generic CAN IMU driver.
+    Product-independent CAN IMU driver.
 
-    Product-specific details should be implemented in IMUProtocolBase subclasses.
-    This driver only manages:
-    - RX callback
-    - state update
-    - freshness / stale status
-    - request frame generation
+    The driver does not send frames directly and does not know CANDaemon.
+    A manager or factory should register on_frame() to the dispatcher and
+    send request frames through CANDaemon.
     """
 
     def __init__(
@@ -53,6 +65,12 @@ class IMUDriver(CANDeviceDriverBase):
         return self.protocol.encode_request_all()
 
     def on_frame(self, frame: CANFrame) -> None:
+        """
+        Dispatcher callback for received IMU frames.
+
+        Keep this method lightweight because it is usually called from the
+        CANDaemon RX thread.
+        """
         try:
             partial_state = self.protocol.decode_frame(frame)
         except Exception:
@@ -61,7 +79,7 @@ class IMUDriver(CANDeviceDriverBase):
                 self.name,
                 frame.can_id,
             )
-            self._mark_decode_error(frame.can_id)
+            self._mark_decode_error(frame)
             return
 
         if partial_state is None:
@@ -70,6 +88,7 @@ class IMUDriver(CANDeviceDriverBase):
         self._merge_state(partial_state)
 
     def _merge_state(self, partial_state: RobotPoseState) -> None:
+        """Merge a partial decoded state into the latest full state."""
         with self._lock:
             if partial_state.quat_xyzw is not None:
                 self._state.quat_xyzw = partial_state.quat_xyzw
@@ -82,9 +101,17 @@ class IMUDriver(CANDeviceDriverBase):
                 self._state.last_gyro_t = partial_state.last_gyro_t
                 self.gyro_comm.mark_rx(partial_state.last_gyro_t)
 
-    def _mark_decode_error(self, can_id: int) -> None:
-        if can_id in self.protocol.rx_can_ids():
-            # 정확히 quat/gyro ID를 구분하고 싶으면 protocol에 is_quat_id(), is_gyro_id()를 추가하는 것이 좋습니다.
+    def _mark_decode_error(self, frame: CANFrame) -> None:
+        """Mark decode error on the matching feedback monitor."""
+        if self.protocol.is_quat_frame(frame):
+            self.quat_comm.mark_decode_error()
+            return
+
+        if self.protocol.is_gyro_frame(frame):
+            self.gyro_comm.mark_decode_error()
+            return
+
+        if frame.can_id in self.protocol.rx_can_ids():
             self.quat_comm.mark_decode_error()
             self.gyro_comm.mark_decode_error()
 
@@ -101,6 +128,10 @@ class IMUDriver(CANDeviceDriverBase):
     def get_state(self) -> RobotPoseState:
         with self._lock:
             return deepcopy(self._state)
+
+    @property
+    def state(self) -> RobotPoseState:
+        return self.get_state()
 
     def get_comm_status(self):
         return {
