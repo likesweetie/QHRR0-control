@@ -77,11 +77,18 @@ add_executable(mujoco_simulate
     third_party/mujoco/simulate/glfw_dispatch.cc
     third_party/mujoco/simulate/platform_ui_adapter.cc
     third_party/mujoco/simulate/simulate.cc
+    third_party/mujoco/simulate/lodepng.cpp
+    third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc
+    third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc
+    third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc
+    third_party/mujoco/simulate/mujoco_can/spg_firmware.cc
+    third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc
 )
 target_include_directories(mujoco_simulate PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${MUJOCO_DIR}/include
     ${MUJOCO_DIR}/simulate
+    ${MUJOCO_DIR}/simulate/mujoco_can
     ${GLFW_INCLUDE_DIRS}
 )
 target_link_directories(mujoco_simulate PRIVATE
@@ -98,4 +105,7 @@ target_link_libraries(mujoco_simulate PRIVATE
 )
 set_target_properties(mujoco_simulate PROPERTIES
     BUILD_RPATH "${MUJOCO_DIR}/lib"
+)
+target_compile_definitions(mujoco_simulate PRIVATE
+    MUJOCO_SIM_CONFIG_DIR="${MUJOCO_DIR}/simulate/configs"
 )
