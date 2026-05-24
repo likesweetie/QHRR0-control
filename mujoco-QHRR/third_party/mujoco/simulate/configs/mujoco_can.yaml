@@ -1,0 +1,61 @@
+mujoco_can:
+  enabled: true
+  base_body_name: base_link
+  motor_id_base: 0
+  command_timeout_s: 0.01
+
+  socketcan:
+    enabled: true
+    interface: vcan0
+
+  spg_mit_defaults:
+    p_max_rad: 12.5
+    v_max_rad_s: 45.0
+    kp_max: 500.0
+    kd_max: 5.0
+    tau_max_nm: 33.0
+    feedback_position_max_rad: 12.56
+    periodic_feedback: false
+    periodic_feedback_s: 0.001
+    set_zero_hold_s: 0.020
+
+  e2box_imu_defaults:
+    request_id: 0x221
+    quat_id: 0x2A1
+    gyro_id: 0x321
+    quat_scale: 10000.0
+    gyro_scale: 100.0
+    normalize_quat: true
+
+  actuators:
+    - name: RL_hip_roll
+      mujoco_joint: RL_hip_roll
+      mujoco_actuator: RL_hip_roll
+      motor_id: 0
+      can_id: 0x141
+      sign: 1.0
+      offset_rad: 0.0
+
+    - name: RL_hip_pitch
+      mujoco_joint: RL_hip_pitch
+      mujoco_actuator: RL_hip_pitch
+      motor_id: 1
+      can_id: 0x142
+      sign: 1.0
+      offset_rad: 0.0
+      
+    - name: RL_knee_pitch
+      mujoco_joint: RL_knee_pitch
+      mujoco_actuator: RL_knee_pitch
+      motor_id: 2
+      can_id: 0x143
+      sign: 1.0
+      offset_rad: 0.0
+
+  imus:
+    - type: e2box
+      enabled: true
+      e2box:
+        request_id: 0x221
+        quat_id: 0x2A1
+        gyro_id: 0x321

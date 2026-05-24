@@ -528,7 +528,7 @@ bool MujocoCanBridge::build_actuator_binding_from_config(
   ActuatorBinding out;
 
   out.motor_id =
-      config.motor_id > 0 ? config.motor_id : motor_id_base_ + binding_index;
+      config.motor_id >= 0 ? config.motor_id : motor_id_base_ + binding_index;
 
   out.can_id =
       config.can_id != 0

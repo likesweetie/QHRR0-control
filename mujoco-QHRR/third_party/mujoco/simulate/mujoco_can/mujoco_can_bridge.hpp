@@ -101,7 +101,7 @@ public:
   void set_base_body_name(const std::string& body_name);
 
   // 자동 actuator scan 시 motor id를 motor_id_base + binding_index로 부여합니다.
-  // 기본값 1이면 CAN ID는 0x141, 0x142, ...
+  // motor_id=0 is valid. 기본값 0이면 CAN ID는 0x140, 0x141, ...
   void set_motor_id_base(int motor_id_base);
 
   void set_spg_mit_config(const SPGMITConfig& config);
@@ -120,7 +120,7 @@ public:
 
     // If can_id is nonzero, it overrides motor_id.
     // Otherwise can_id = 0x140 + motor_id.
-    // If motor_id <= 0, motor_id = motor_id_base + binding_index.
+    // If motor_id < 0, motor_id = motor_id_base + binding_index.
     int motor_id = -1;
     uint32_t can_id = 0;
 
@@ -335,7 +335,7 @@ private:
   int base_body_id_ = -1;
   int base_free_joint_dof_adr_ = -1;
 
-  int motor_id_base_ = 1;
+  int motor_id_base_ = 0;
 
   double command_timeout_s_ = 0.1;
 

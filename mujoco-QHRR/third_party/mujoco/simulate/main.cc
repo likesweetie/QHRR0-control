@@ -412,7 +412,7 @@ VirtualCanConfig load_virtual_can_config_from_fixed_path() {
       yaml_get_or<bool>(can, "enabled", config.enabled);
 
   config.base_body_name =
-      yaml_get_or<std::string>(can, "base_body", config.base_body_name);
+      yaml_get_or<std::string>(can, "base_body_name", config.base_body_name);
 
   config.motor_id_base =
       yaml_get_or<int>(can, "motor_id_base", config.motor_id_base);

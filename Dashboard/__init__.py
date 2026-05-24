@@ -1,0 +1,1 @@
+"""Web CAN dashboard package."""
