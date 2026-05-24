@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QHRR Robot State</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-page="overview">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">QHRR Control</p>
+        <h1>Robot State</h1>
+      </div>
+      <div class="status-strip">
+        <span id="ifaceBadge" class="badge muted">iface</span>
+        <span id="socketBadge" class="badge muted">socket</span>
+        <span id="txBadge" class="badge danger">TX LOCKED</span>
+      </div>
+    </header>
+
+    <nav class="menubar" aria-label="Dashboard views">
+      <a class="menu-link active" href="/">Overview</a>
+      <a class="menu-link" href="/processes">Processes</a>
+      <a class="menu-link" href="/shm">SHM Data</a>
+    </nav>
+
+    <main class="dashboard overview-grid">
+      <section class="panel bus-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Bus</p>
+            <h2>CAN Load</h2>
+          </div>
+          <strong id="loadPercent" class="metric-large">0.0%</strong>
+        </div>
+        <div class="progress" aria-label="CAN bus load">
+          <div id="loadBar" class="progress-fill"></div>
+        </div>
+        <div class="metric-grid">
+          <div><span>RX</span><strong id="rxRate">0.0 fps</strong></div>
+          <div><span>TX</span><strong id="txRate">0.0 fps</strong></div>
+          <div><span>Estimate</span><strong id="kbps">0.0 kbps</strong></div>
+          <div><span>Total</span><strong id="totals">0 / 0</strong></div>
+        </div>
+        <p id="socketError" class="error-line"></p>
+      </section>
+
+      <section class="panel command-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Control</p>
+            <h2>Transmit</h2>
+          </div>
+          <button id="txToggle" class="button danger">Unlock TX</button>
+        </div>
+
+        <div class="control-row">
+          <label for="pollHz">IMU Hz</label>
+          <input id="pollHz" type="number" min="0.1" max="1000" step="1" value="100" />
+          <button id="pollToggle" class="button primary">Start Poll</button>
+        </div>
+
+        <form id="rawForm" class="command-form">
+          <label>
+            CAN ID
+            <select id="rawCanId"></select>
+          </label>
+          <label>
+            Payload
+            <input id="rawPayload" value="03" autocomplete="off" />
+          </label>
+          <button class="button dark" type="submit">Send</button>
+        </form>
+
+        <p id="commandMessage" class="message-line"></p>
+      </section>
+
+      <section class="panel robot-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">E2Box + Actuators</p>
+            <h2>Robot State</h2>
+          </div>
+          <div class="panel-badges">
+            <span id="robotControllerBadge" class="badge muted">controller</span>
+            <span id="imuFreshBadge" class="badge muted">imu</span>
+          </div>
+        </div>
+        <div class="robot-state-view">
+          <div class="attitude-view" aria-label="Robot attitude">
+            <div class="attitude-scene">
+              <div id="robotAttitudeBody" class="robot-body">
+                <span class="robot-face robot-face-front">FRONT</span>
+                <span class="robot-face robot-face-back"></span>
+                <span class="robot-face robot-face-right"></span>
+                <span class="robot-face robot-face-left"></span>
+                <span class="robot-face robot-face-top">UP</span>
+                <span class="robot-face robot-face-bottom"></span>
+              </div>
+              <div class="attitude-floor"></div>
+            </div>
+          </div>
+          <div class="attitude-metrics">
+            <div><span>Roll</span><strong id="rollValue">0.0 deg</strong></div>
+            <div><span>Pitch</span><strong id="pitchValue">0.0 deg</strong></div>
+            <div><span>Yaw</span><strong id="yawValue">0.0 deg</strong></div>
+          </div>
+        </div>
+        <div class="vector-grid">
+          <div><span>quat xyzw</span><code id="quatValue">0.000, 0.000, 0.000, 1.000</code></div>
+          <div><span>gravity b</span><code id="gravityValue">0.000, 0.000, -1.000</code></div>
+          <div><span>gyro rad/s</span><code id="gyroValue">0.000, 0.000, 0.000</code></div>
+        </div>
+        <div class="metric-grid compact">
+          <div><span>Request TX</span><strong id="imuReq">0</strong></div>
+          <div><span>Quaternion RX</span><strong id="imuQuat">0</strong></div>
+          <div><span>Gyro RX</span><strong id="imuGyro">0</strong></div>
+          <div><span>Latest Age</span><strong id="imuAge">never</strong></div>
+        </div>
+        <div id="enabledMotorCards" class="enabled-motors"></div>
+      </section>
+
+      <section class="panel motor-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Actuators</p>
+            <h2>SPG / MIT</h2>
+          </div>
+          <button id="allActuatorToggle" class="button secondary">Enable All</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Actuator</th>
+                <th>CAN</th>
+                <th>State</th>
+                <th>Age</th>
+                <th>Temp</th>
+                <th>Iq[A]</th>
+                <th>Speed</th>
+                <th>Pos</th>
+                <th>Raw</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="motorRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel node-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Nodes</p>
+            <h2>Heartbeat</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>CAN</th>
+                <th>Role</th>
+                <th>Hz</th>
+                <th>Last Seen</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="nodeRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel frames-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Traffic</p>
+            <h2>Recent Frames</h2>
+          </div>
+        </div>
+        <div id="recentFrames" class="frames-list"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

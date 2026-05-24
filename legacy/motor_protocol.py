@@ -430,7 +430,7 @@ def send_mit_zero(
 
 def send_all_mit(
     sock: socket.socket,
-    motor_ids: List[int],
+    can_ids: List[int],
     target_map: Dict[int, float],
     v_des_map: Dict[int, float],
     kp_map: Dict[int, float],
@@ -438,27 +438,27 @@ def send_all_mit(
     tau_ff_map: Dict[int, float],
     cfg: MITConfig,
 ) -> None:
-    for motor_id in motor_ids:
-        p_des = target_map[motor_id]
-        v_des = v_des_map[motor_id]
-        kp = kp_map[motor_id]
-        kd = kd_map[motor_id]
-        tau_ff = tau_ff_map[motor_id]
-        send_mit_control(sock, motor_id, p_des, v_des, kp, kd, tau_ff, cfg)
+    for can_id in can_ids:
+        p_des = target_map[can_id]
+        v_des = v_des_map[can_id]
+        kp = kp_map[can_id]
+        kd = kd_map[can_id]
+        tau_ff = tau_ff_map[can_id]
+        send_mit_control(sock, can_id, p_des, v_des, kp, kd, tau_ff, cfg)
 
 
 
 
 def drain_rx_buffer(
     sock: socket.socket,
-    motor_ids: List[int],
+    can_ids: List[int],
     expected_cmd: int = 0xC0,
     max_frames: int = 4096,
     timeout=0.0,
 ) -> Tuple[Dict[int, MotorStatus], int]:
     latest_status: Dict[int, MotorStatus] = {}
     recv_count = 0
-    motor_id_set = set(motor_ids)
+    can_id_set = set(can_ids)
 
     for _ in range(max_frames):
         rx = recv_frame(sock, timeout=timeout)
@@ -467,7 +467,7 @@ def drain_rx_buffer(
 
         rid, dlc, data = rx
 
-        if rid not in motor_id_set:
+        if rid not in can_id_set:
             continue
         if dlc != 8:
             continue

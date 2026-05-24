@@ -1,0 +1,1 @@
+"""Joystick auxiliary reader process."""

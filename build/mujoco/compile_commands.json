@@ -1,0 +1,102 @@
+[
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/daemon.dir/app/daemon/main.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/daemon/main.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/daemon/main.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/daemon.dir/app/daemon/daemon.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/daemon/daemon.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/daemon/daemon.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/onnxruntime/include -isystem /usr/include/eigen3 -std=gnu++17 -o CMakeFiles/task_controller.dir/app/task_controller/main.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/main.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/main.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/onnxruntime/include -isystem /usr/include/eigen3 -std=gnu++17 -o CMakeFiles/task_controller.dir/app/task_controller/task_controller.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/task_controller.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/task_controller.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/onnxruntime/include -isystem /usr/include/eigen3 -std=gnu++17 -o CMakeFiles/task_controller.dir/app/task_controller/onnx_runner.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/onnx_runner.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/onnx_runner.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/onnxruntime/include -isystem /usr/include/eigen3 -std=gnu++17 -o CMakeFiles/task_controller.dir/app/task_controller/rnn_onnx_runner.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/rnn_onnx_runner.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/task_controller/rnn_onnx_runner.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/aux_reader.dir/app/aux_reader/main.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/aux_reader/main.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/aux_reader/main.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/aux_reader.dir/app/aux_reader/joystick.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/aux_reader/joystick.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/aux_reader/joystick.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o -c /home/kale/QHRR_control/legacy/mujoco-QHRR/app/shm_logger/main.cpp",
+  "file": "/home/kale/QHRR_control/legacy/mujoco-QHRR/app/shm_logger/main.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/main.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/main.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/main.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/glfw_adapter.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/glfw_adapter.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/glfw_adapter.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/glfw_dispatch.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/glfw_dispatch.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/glfw_dispatch.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/platform_ui_adapter.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/platform_ui_adapter.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/platform_ui_adapter.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/simulate.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/simulate.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/simulate.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/lodepng.cpp.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/lodepng.cpp",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/lodepng.cpp"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc"
+},
+{
+  "directory": "/home/kale/QHRR_control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/kale/QHRR_control/legacy/mujoco-QHRR/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/kale/QHRR_control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc.o -c /home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc",
+  "file": "/home/kale/QHRR_control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc"
+}
+]

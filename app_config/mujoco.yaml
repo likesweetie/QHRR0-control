@@ -1,0 +1,14 @@
+platform_config: platform.yaml
+
+mujoco_can:
+  enabled: true
+  base_body_name: base_link
+  command_timeout_s: 0.01
+
+  socketcan:
+    enabled: true
+
+  spg_mit:
+    periodic_feedback: false
+    periodic_feedback_s: 0.001
+    set_zero_hold_s: 0.020

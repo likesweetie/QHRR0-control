@@ -4,11 +4,11 @@ import argparse
 import signal
 from pathlib import Path
 
-from .config import load_robot_controller_config
+from .core.config import load_robot_controller_config
 from .robot_controller import RobotController
 
 
-DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs" / "robot_controller.yaml"
+DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "app_config" / "robot_controller.yaml"
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,13 +29,13 @@ def main() -> None:
 
     def handle_signal(signum: int, _frame: object) -> None:
         print(f"[robot_controller] signal {signum}, shutting down")
-        controller.shutdown()
+        controller.request_stop()
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    controller.start()
     try:
+        controller.start()
         controller.run()
     finally:
         controller.shutdown()

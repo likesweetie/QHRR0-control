@@ -120,7 +120,7 @@ class CANDaemon:
     def _tx_loop(self) -> None:
         while not self._stop_event.is_set():
             try:
-                frame = self.tx_queue.get(timeout=self.tx_timeout)
+                frame = self._tx_queue.get(timeout=self.tx_timeout)
             except queue.Empty:
                 continue
 

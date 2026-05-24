@@ -1,0 +1,9 @@
+robot: "qhrr1" 
+
+# joystick_device: "/dev/input/js0" 
+
+# control_frequency: 500.0
+decimation: 1
+kp: 120.0
+kd: 1.0
+num_joint: 12

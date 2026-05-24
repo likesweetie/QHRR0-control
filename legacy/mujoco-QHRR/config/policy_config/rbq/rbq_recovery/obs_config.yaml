@@ -1,0 +1,21 @@
+observations:
+  components:
+    [
+    "lin_vel_x_commands_",
+    "base_ang_vel_",
+    "projected_gravity",
+    "dof_pos",
+    "dof_vel",
+    "last_actions",
+    "last_last_actions",
+    "last_last_last_actions"]
+
+  scales:
+    base_ang_vel_: 0.25
+    projected_gravity: 1.0
+    lin_vel_x_commands_: 1.0
+    dof_pos: 1.0
+    dof_vel: 0.05
+    last_actions: 1.0
+    last_last_actions: 1.0
+    last_last_last_actions: 1.0
