@@ -18,7 +18,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -27,12 +26,9 @@
 #include <thread>
 
 #include <mujoco/mujoco.h>
-#include <yaml-cpp/yaml.h>
 #include "glfw_adapter.h"
 #include "simulate.h"
 #include "array_safety.h"
-#include "shared_memory.hpp"
-#include "shm_utils.hpp"
 
 #define MUJOCO_PLUGIN_DIR "mujoco_plugin"
 
@@ -43,7 +39,7 @@ extern "C" {
   #if defined(__APPLE__)
     #include <mach-o/dyld.h>
   #endif
-  #include <sys/errno.h>
+  #include <errno.h>
   #include <unistd.h>
 #endif
 }
@@ -63,256 +59,6 @@ mjData* d = nullptr;
 
 using Seconds = std::chrono::duration<double>;
 
-constexpr const char* kDefaultShmName = "/shm0";
-ShmData* g_shm = nullptr;
-std::uint64_t g_last_command_seq = 0;
-struct PdConfig {
-  double kp{0.0};
-  double kd{0.0};
-  int num_joint{0};
-};
-PdConfig g_pd;
-
-const char* ResolvePdConfigPath() {
-  const char* env_path = std::getenv("PD_CONFIG_PATH");
-  if (env_path && env_path[0]) {
-    return env_path;
-  }
-  return nullptr;
-}
-
-const char* ResolvePolicyConfigDir() {
-  const char* env_path = std::getenv("POLICY_CONFIG_DIR");
-  if (env_path && env_path[0]) {
-    return env_path;
-  }
-  return nullptr;
-}
-
-const char* ResolveShmName() {
-  const char* env_name = std::getenv("SHM_NAME");
-  if (!env_name || !env_name[0]) {
-    env_name = std::getenv("SHM_NAME");
-  }
-  return (env_name && env_name[0]) ? env_name : kDefaultShmName;
-}
-
-int ClampCount(int value, std::size_t cap) {
-  if (value <= 0) {
-    return 0;
-  }
-  return static_cast<int>(std::min<std::size_t>(static_cast<std::size_t>(value), cap));
-}
-
-void AttachSharedMemory() {
-  const char* shm_name = ResolveShmName();
-  bool created = false;
-  g_shm = shm_utils::CreateShm(shm_name, true, &created);
-  if (!g_shm) {
-    std::cerr << "[simulate] failed to open/create SHM: " << shm_name << '\n';
-    return;
-  }
-  if (created) {
-    std::memset(g_shm, 0, sizeof(ShmData));
-  }
-  std::strncpy(g_shm->name, shm_name, sizeof(g_shm->name) - 1);
-  g_shm->name[sizeof(g_shm->name) - 1] = '\0';
-  std::cout << "[simulate] SHM attached: " << g_shm->name << '\n';
-}
-
-void LoadPdConfig() {
-  const char* explicit_path = ResolvePdConfigPath();
-  const char* policy_config_dir = ResolvePolicyConfigDir();
-  std::string policy_config_pd_path;
-  if (policy_config_dir && policy_config_dir[0]) {
-    policy_config_pd_path = std::string(policy_config_dir) + "/pd_config.yaml";
-  }
-
-  const char* candidates[] = {
-      explicit_path,
-      policy_config_pd_path.empty() ? nullptr : policy_config_pd_path.c_str(),
-      "../config/policy_config/pd_config.yaml",
-      "config/policy_config/pd_config.yaml",
-  };
-
-  for (const char* path : candidates) {
-    if (!path || !path[0]) continue;
-    try {
-      YAML::Node cfg = YAML::LoadFile(path);
-      if (cfg["kp"]) g_pd.kp = cfg["kp"].as<double>();
-      if (cfg["kd"]) g_pd.kd = cfg["kd"].as<double>();
-      if (cfg["num_joint"]) g_pd.num_joint = cfg["num_joint"].as<int>();
-      std::cout << "[simulate] PD config loaded: " << path
-                << " kp=" << g_pd.kp
-                << " kd=" << g_pd.kd
-                << " num_joint=" << g_pd.num_joint << '\n';
-      return;
-    } catch (const std::exception&) {
-      // Try next candidate.
-    }
-  }
-
-  std::cout << "[simulate] PD config not found. Using defaults"
-            << " kp=" << g_pd.kp
-            << " kd=" << g_pd.kd
-            << " num_joint=" << g_pd.num_joint << '\n';
-}
-
-bool GetActuatedQAndQd(const mjModel* model, const mjData* data, int actuator_id,
-                       mjtNum* out_q, mjtNum* out_qd) {
-  if (model->actuator_trntype[actuator_id] == mjTRN_JOINT) {
-    const int joint_id = model->actuator_trnid[2 * actuator_id];
-    if (joint_id >= 0 && joint_id < model->njnt) {
-      const int qpos_adr = model->jnt_qposadr[joint_id];
-      const int dof_adr = model->jnt_dofadr[joint_id];
-      // std::cout << "[simulate] joint_id: " << joint_id << ", dof_adr: " << dof_adr << std::endl;
-      if (qpos_adr >= 0 && qpos_adr < model->nq &&
-          dof_adr >= 0 && dof_adr < model->nv) {
-        *out_q = data->qpos[qpos_adr];
-        *out_qd = data->qvel[dof_adr];
-        return true;
-      }
-    }
-  }
-
-  if (actuator_id < model->nq && actuator_id < model->nv) {
-    *out_q = data->qpos[actuator_id];
-    *out_qd = data->qvel[actuator_id];
-    return true;
-  }
-
-  return false;
-}
-
-void ExtractBaseQuatAndAngVel(const mjModel* model, const mjData* data,
-                              double out_quat[4], double out_ang_vel[3]) {
-  out_quat[0] = 1.0;
-  out_quat[1] = 0.0;
-  out_quat[2] = 0.0;
-  out_quat[3] = 0.0;
-  out_ang_vel[0] = 0.0;
-  out_ang_vel[1] = 0.0;
-  out_ang_vel[2] = 0.0;
-
-  // int body_id = mj_name2id(model, mjOBJ_BODY, "IMU");
-  // mjtNum vel[6];
-  // mj_objectVelocity(model, data, mjOBJ_BODY, body_id, vel, 0);
-
-  // mjtNum* ang_vel = vel;      // [0:3]
-  // mjtNum* lin_vel = vel + 3;  // [3:6]
-
-  // const mjtNum* quat = data->xquat + 4 * body_id;
-
-  // out_quat[0] = static_cast<double>(quat[0]);
-  // out_quat[1] = static_cast<double>(quat[1]);
-  // out_quat[2] = static_cast<double>(quat[2]);
-  // out_quat[3] = static_cast<double>(quat[3]);
-
-  // // free joint qvel layout: [vx, vy, vz, wx, wy, wz]
-  // out_ang_vel[0] = static_cast<double>(ang_vel[0]);
-  // out_ang_vel[1] = static_cast<double>(ang_vel[1]);
-  // out_ang_vel[2] = static_cast<double>(ang_vel[2]);
-
-  out_quat[0] = static_cast<double>(data->qpos[3]);
-  out_quat[1] = static_cast<double>(data->qpos[4]);
-  out_quat[2] = static_cast<double>(data->qpos[5]);
-  out_quat[3] = static_cast<double>(data->qpos[6]);
-
-  // free joint qvel layout: [vx, vy, vz, wx, wy, wz]
-  out_ang_vel[0] = static_cast<double>(data->qvel[3]);
-  out_ang_vel[1] = static_cast<double>(data->qvel[4]);
-  out_ang_vel[2] = static_cast<double>(data->qvel[5]);
-  return;
-
-
-  // for (int j = 0; j < model->njnt; ++j) {
-  //   if (model->jnt_type[j] != mjJNT_FREE) {
-  //     continue;
-  //   }
-
-  //   const int qadr = model->jnt_qposadr[j];
-  //   const int dadr = model->jnt_dofadr[j];
-  //   if (qadr < 0 || dadr < 0) {
-  //     continue;
-  //   }
-  //   // free joint qpos layout: [x, y, z, qw, qx, qy, qz]
-  //   if (qadr >= model->nq || dadr >= model->nv) {
-  //     continue;
-  //   }
-  // }
-  return;
-}
-
-void ApplyControlFromShm(const mjModel* model, mjData* data) {
-  if (!g_shm || !model || !data || model->nu <= 0) {
-    std::cerr << "[simulate] Invalid input to ApplyControlFromShm\n";
-    return;
-  }
-
-  const int nu = ClampCount(model->nu, kShmMaxCtrl);
-  int controlled = nu;
-  if (g_pd.num_joint > 0) {
-    controlled = std::min(controlled, g_pd.num_joint);
-  }
-
-  for (int i = 0; i < controlled; ++i) {
-    mjtNum q = 0;
-    mjtNum qd = 0;
-    if (!GetActuatedQAndQd(model, data, i, &q, &qd)) {
-      data->ctrl[i] = 0;
-      std::cerr << "[simulate] Failed to get actuated q and qd for actuator " << i << "\n";
-      continue;
-    }
-
-    const mjtNum q_target = static_cast<mjtNum>(g_shm->q_target[i]);
-    const mjtNum u = static_cast<mjtNum>(g_pd.kp) * (q_target - q) -
-                     static_cast<mjtNum>(g_pd.kd) * qd;
-    data->ctrl[i] = u;
-  }
-  for (int i = controlled; i < model->nu; ++i) {
-    data->ctrl[i] = 0;
-  }
-
-  const std::uint64_t command_seq = g_shm->command_seq;
-  g_last_command_seq = command_seq;
-  g_shm->applied_command_seq = command_seq;
-}
-
-void PublishStateToShm(const mjModel* model, const mjData* data) {
-  if (!g_shm || !model || !data) {
-    return;
-  }
-
-  const int nq = ClampCount(model->nq, kShmMaxQpos);
-  const int nv = ClampCount(model->nv, kShmMaxQvel);
-  const int nu = ClampCount(model->nu, kShmMaxCtrl);
-  const int nsensordata = ClampCount(model->nsensordata, kShmMaxSensorData);
-
-  g_shm->counter++;
-  g_shm->sim_time = data->time;
-  g_shm->nq = nq;
-  g_shm->nv = nv;
-  g_shm->nu = nu;
-  g_shm->nsensordata = nsensordata;
-
-
-  
-  if (nq > 0) {
-    std::memcpy(g_shm->qpos, data->qpos, sizeof(double) * nq);
-  }
-  if (nv > 0) {
-    std::memcpy(g_shm->qvel, data->qvel, sizeof(double) * nv);
-  }
-  ExtractBaseQuatAndAngVel(model, data, g_shm->quat, g_shm->ang_vel);
-  if (nu > 0) {
-    std::memcpy(g_shm->ctrl_applied, data->ctrl, sizeof(double) * nu);
-  }
-  if (nsensordata > 0) {
-    std::memcpy(g_shm->sensordata, data->sensordata, sizeof(double) * nsensordata);
-  }
-
-  g_shm->state_seq++;
-}
 
 //---------------------------------------- plugin handling -----------------------------------------
 
@@ -478,24 +224,40 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   char loadError[kErrorLength] = "";
   mjModel* mnew = 0;
   auto load_start = mj::Simulate::Clock::now();
-  if (mju::strlen_arr(filename)>4 &&
-      !std::strncmp(filename + mju::strlen_arr(filename) - 4, ".mjb",
-                    mju::sizeof_arr(filename) - mju::strlen_arr(filename)+4)) {
+
+  std::string filename_str(filename);
+  std::string extension;
+  size_t dot_pos = filename_str.rfind('.');
+
+  if (dot_pos != std::string::npos && dot_pos < filename_str.length() - 1) {
+    extension = filename_str.substr(dot_pos);
+  }
+
+  if (extension == ".mjb") {
     mnew = mj_loadModel(filename, nullptr);
     if (!mnew) {
       mju::strcpy_arr(loadError, "could not load binary model");
     }
-  } else {
+  } else if (extension == ".xml") {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
-
-    // remove trailing newline character from loadError
-    if (loadError[0]) {
-      int error_length = mju::strlen_arr(loadError);
-      if (loadError[error_length-1] == '\n') {
-        loadError[error_length-1] = '\0';
-      }
+  } else {
+    mjSpec* spec = mj_parse(filename, nullptr, nullptr, loadError, kErrorLength);
+    if (!spec) {
+      mju::strcpy_arr(loadError, "could not parse model");
+    } else {
+      mnew = mj_compile(spec, nullptr);
+      mj_deleteSpec(spec);
     }
   }
+
+  // remove trailing newline character from loadError
+  if (loadError[0]) {
+    int error_length = mju::strlen_arr(loadError);
+    if (loadError[error_length-1] == '\n') {
+      loadError[error_length-1] = '\0';
+    }
+  }
+
   auto load_interval = mj::Simulate::Clock::now() - load_start;
   double load_seconds = Seconds(load_interval).count();
 
@@ -524,7 +286,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 
 // simulate in background thread (while rendering in main thread)
 void PhysicsLoop(mj::Simulate& sim) {
-  // cpu-sim syncronization point
+  // cpu-sim synchronization point
   std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
 
@@ -549,7 +311,6 @@ void PhysicsLoop(mj::Simulate& sim) {
         m = mnew;
         d = dnew;
         mj_forward(m, d);
-        PublishStateToShm(m, d);
 
       } else {
         sim.LoadMessageClear();
@@ -574,7 +335,6 @@ void PhysicsLoop(mj::Simulate& sim) {
         m = mnew;
         d = dnew;
         mj_forward(m, d);
-        PublishStateToShm(m, d);
 
       } else {
         sim.LoadMessageClear();
@@ -609,7 +369,7 @@ void PhysicsLoop(mj::Simulate& sim) {
           // requested slow-down factor
           double slowdown = 100 / sim.percentRealTime[sim.real_time_index];
 
-          // misalignment condition: distance from target sim time is bigger than syncmisalign
+          // misalignment condition: distance from target sim time is bigger than syncMisalign
           bool misaligned =
               std::abs(Seconds(elapsedCPU).count()/slowdown - elapsedSim) > syncMisalign;
 
@@ -621,8 +381,10 @@ void PhysicsLoop(mj::Simulate& sim) {
             syncSim = d->time;
             sim.speed_changed = false;
 
+            // inject noise
+            sim.InjectNoise(sim.key);
+
             // run single step, let next iteration deal with timing
-            ApplyControlFromShm(m, d);
             mj_step(m, d);
             const char* message = Diverged(m->opt.disableflags, d);
             if (message) {
@@ -651,10 +413,9 @@ void PhysicsLoop(mj::Simulate& sim) {
               }
 
               // inject noise
-              sim.InjectNoise();
+              sim.InjectNoise(sim.key);
 
               // call mj_step
-              ApplyControlFromShm(m, d);
               mj_step(m, d);
               const char* message = Diverged(m->opt.disableflags, d);
               if (message) {
@@ -680,12 +441,12 @@ void PhysicsLoop(mj::Simulate& sim) {
         // paused
         else {
           // run mj_forward, to update rendering and joint sliders
-          ApplyControlFromShm(m, d);
           mj_forward(m, d);
+          if (sim.pause_update) {
+            mju_copy(d->qacc_warmstart, d->qacc, m->nv);
+          }
           sim.speed_changed = true;
         }
-
-        PublishStateToShm(m, d);
       }
     }  // release std::lock_guard<std::mutex>
   }
@@ -712,7 +473,6 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
       const std::unique_lock<std::recursive_mutex> lock(sim->mtx);
 
       mj_forward(m, d);
-      PublishStateToShm(m, d);
 
     } else {
       sim->LoadMessageClear();
@@ -756,8 +516,6 @@ int main(int argc, char** argv) {
 
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
-  LoadPdConfig();
-  AttachSharedMemory();
 
   mjvCamera cam;
   mjv_defaultCamera(&cam);
@@ -785,11 +543,6 @@ int main(int argc, char** argv) {
   // start simulation UI loop (blocking call)
   sim->RenderLoop();
   physicsthreadhandle.join();
-
-  if (g_shm) {
-    shm_utils::CloseShm(g_shm);
-    g_shm = nullptr;
-  }
 
   return 0;
 }
