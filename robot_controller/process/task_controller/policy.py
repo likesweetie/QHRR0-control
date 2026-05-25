@@ -88,6 +88,7 @@ def action_offset(policy: OnnxPolicy, robot_name: str, q: np.ndarray, mode: bool
     defaults = np.asarray([float(value) for value in policy.config["default_joint_angle"]], dtype=np.float64)
     defaults = defaults[: len(q)]
     if robot_name in {"qhrr", "qhrr1"}:
+        # print(defaults)
         return defaults
     if robot_name == "rbq":
         quad = np.resize(np.asarray([0.0, 0.7, -1.4], dtype=np.float64), len(q))
@@ -125,7 +126,8 @@ def _quat_to_projected_gravity(quat_wxyz: list[float]) -> np.ndarray:
         ],
         dtype=np.float64,
     )
-    return rotation.T @ np.array([0.0, 0.0, -1.0], dtype=np.float64)
+    pg = rotation.T @ np.array([0.0, 0.0, -1.0], dtype=np.float64)
+    return np.array([pg[0], pg[1], pg[2]])
 
 
 class OnnxPolicy:
@@ -163,6 +165,7 @@ class OnnxPolicy:
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         print(f"[task_controller] loaded policy {self.name}: {policy_dir / 'policy.onnx'}", flush=True)
+        self.cnt = 0
 
     def set_state(self, dof_pos: np.ndarray, dof_vel: np.ndarray, quat_wxyz: list[float], ang_vel: np.ndarray) -> None:
         self.dof_pos[:] = np.array([dof_pos[index] for index in self.input_indices], dtype=np.float64)
@@ -179,6 +182,8 @@ class OnnxPolicy:
         self.mode = bool(mode)
 
     def compute_action(self) -> np.ndarray:
+        self.cnt += 1
+        # print(f"[task_controller] Compute action call {self.cnt}")
         output = self.session.run([self.output_name], {self.input_name: self._observation()})[0]
         raw = np.asarray(output, dtype=np.float64).reshape(-1)[: self.num_joint]
         self.actions[:] = np.clip(raw, -self.action_clip, self.action_clip)
@@ -199,6 +204,7 @@ class OnnxPolicy:
                 values.extend((self.base_ang_vel * self._scale(component, 1.0)).tolist())
             elif component == "projected_gravity":
                 values.extend((self.projected_gravity * self._scale(component, 1.0)).tolist())
+                # print(f"[task_controller] Projected gravity: {self.projected_gravity}")
             elif component == "lin_vel_x_commands_":
                 values.append(self.commands[0] * self._scale(component, 1.0))
             elif component == "lin_vel_y_commands_":
@@ -234,16 +240,7 @@ class OnnxPolicy:
         components = observations.get("components", [])
         if components:
             return [str(value) for value in components]
-        return [
-            "base_ang_vel_",
-            "projected_gravity",
-            "lin_vel_x_commands_",
-            "lin_vel_y_commands_",
-            "ang_vel_z_commands_",
-            "delta_dof_pos",
-            "dof_vel",
-            "actions",
-        ]
+        else: raise RuntimeError(f"No observation components specified")
 
     def _obs_scales(self) -> dict[str, float]:
         observations = self.obs_config.get("observations", {})

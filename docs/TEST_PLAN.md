@@ -1,6 +1,6 @@
 # Test Plan
 
-이 문서는 현재 코드 entrypoint를 기준으로 한 수동/반자동 test plan이다. repository에서 공식 automated test suite는 확인되지 않았다.
+이 문서는 현재 코드 entrypoint와 `tests/` unittest suite를 기준으로 한다.
 
 ## Smoke Test
 
@@ -14,17 +14,21 @@
 
 ## Unit Test
 
-UNKNOWN: 현재 repository에서 pytest/unittest test suite는 확인되지 않았다.
-
-권장 최소 단위 테스트 대상:
+현재 추가된 unittest suite:
 
 | Target | Acceptance criteria |
 | --- | --- |
-| `SPGActuatorProtocol._pack_mit_payload()` | limit boundary와 out-of-range rejection |
-| `E2BoxIMUProtocol._decode_quat()` | `qz,qy,qx,qw` raw order, `qx` sign correction, normalize |
-| `ShmMitCommandWriter/Router` | complete batch read, incomplete batch reject, seq collision retry |
-| `RobotStateShmWriter/Reader` | schema payload publish/read, invalid magic/version reject |
-| `load_robot_controller_config()` | missing key, duplicate CAN ID, kd lower bound rejection |
+| `test_config_safety_gate.py` | simulation/hardware mode gate reject/pass |
+| `test_command_validator.py` | NaN, duplicate, unknown, missing, limit reject |
+| `test_safety_controller.py` | command loss/stale, feedback stale, process death, fault latch |
+| `test_control_loop.py` | fresh/stale/fault `run_once()` action 선택 |
+| `test_shm_policy_command_source.py` | MIT SHM no-command/read-available status |
+
+Run:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests
+```
 
 ## Integration Test: vcan CAN Daemon
 
@@ -45,7 +49,7 @@ candump -td vcan0
 터미널 2:
 
 ```bash
-python3 -m robot_controller.process.can_daemon.main --config app_config/robot_controller.yaml --replace-existing-socket
+python3 -m robot_controller.process.can_daemon.main --config config/app_config/robot_controller.yaml --replace-existing-socket
 ```
 
 터미널 3:
@@ -65,7 +69,7 @@ Expected result:
 ## Integration Test: Full Controller on vcan
 
 ```bash
-python3 -m robot_controller.main --config app_config/robot_controller.yaml
+python3 -m robot_controller.main --config config/app_config/robot_controller.yaml
 ```
 
 Expected result:
@@ -90,7 +94,7 @@ python3 run_mujoco_simulation.py
 터미널 2:
 
 ```bash
-python3 -m robot_controller.main --config app_config/robot_controller.yaml
+python3 -m robot_controller.main --config config/app_config/robot_controller.yaml
 ```
 
 Expected result:
@@ -100,6 +104,7 @@ Expected result:
 | MuJoCo | `mujoco_simulate` window/process 시작 |
 | CAN | `vcan0`에 IMU request, actuator command/feedback traffic |
 | Dashboard Robot State | control_state/dashboard_state online |
+| MuJoCo MIT latch | MIT enter 직후 torque 0, 이후 최신 MIT control RX command 유지 |
 
 UNKNOWN: 현재 환경에서 GUI/OpenGL availability는 문서 작성 중 검증하지 않았다.
 
@@ -111,7 +116,7 @@ UNKNOWN: 현재 환경에서 GUI/OpenGL availability는 문서 작성 중 검증
 | --- | --- | --- |
 | 1 | `ip link show <iface>` | interface UP |
 | 2 | `candump -td <iface>` | background traffic 확인 |
-| 3 | `app_config/platform.yaml` review | CAN ID/interface/bitrate 확인 |
+| 3 | `config/app_config/platform.yaml` review | CAN ID/interface/bitrate 확인 |
 | 4 | `can.motors.enter_on_start: false` dry-run config 검토 | 시작 시 enable frame 방지 여부 확인 |
 | 5 | controller start | IMU request와 expected traffic 확인 |
 
@@ -121,12 +126,12 @@ UNKNOWN: 별도 dry-run config 파일은 현재 확인되지 않았다.
 
 | Fault | Injection | Expected result |
 | --- | --- | --- |
-| No MIT command batch | `task_controller` 미실행 또는 종료 | log `Sending one damping command because no MIT command batch available` |
-| Stale MIT command | `task_controller`를 멈춤 | `can.command_timeout_s` 이후 stale damping once |
+| No MIT command batch while MIT-enabled | `task_controller` 미실행 또는 종료 | `DAMPING` + every-tick `SEND_DAMPING`; after `safety.damping_timeout_s`, `FAULT_LATCHED` + continued `SEND_DAMPING` |
+| Stale MIT command while MIT-enabled | `task_controller`를 멈춤 | `can.command_timeout_s` 이후 `DAMPING` + every-tick damping; after timeout, fault-latched damping 유지 |
 | Incomplete MIT batch | target count 부족한 writer로 publish | `ValueError("Incomplete MIT command batch...")`, controller shutdown |
-| NaN action | MIT target field에 NaN publish | `validate_mit_batch()` fatal, shutdown path |
+| NaN action | MIT target field에 NaN publish | `CommandValidator` reject, `SafetyController` fault latch |
 | CAN daemon socket stale | socket file 남기고 daemon start without replace flag | RuntimeError: socket already exists |
-| Child ignores SIGTERM | SIGTERM 무시 process로 대체 | supervisor warning 후 SIGKILL |
+| Child ignores SIGTERM | SIGTERM 무시 process로 대체 | child process manager warning 후 SIGKILL |
 | Robot State SHM version mismatch | magic/version 변조 | reader RuntimeError/dashboard SHM error |
 
 ## Acceptance Criteria
@@ -138,14 +143,13 @@ UNKNOWN: 별도 dry-run config 파일은 현재 확인되지 않았다.
 | SHM | `qhrr_control_state` publishes schema `qhrr.control_state.v1` |
 | Policy | `task_controller` writes complete MIT batch for all configured CAN IDs |
 | Safety | missing/stale MIT batch never holds previous command indefinitely |
-| Shutdown | Ctrl+C sends damping once, optional MIT_EXIT, stops child processes |
+| Shutdown | Ctrl+C sends damping-like MIT command, optional MIT_EXIT, stops child processes |
 | Dashboard | process and SHM pages show current process/SHM status |
 
 ## 검증 필요 항목
 
 | 항목 | 질문 |
 | --- | --- |
-| automated tests | TODO(owner): pytest/unit test harness 추가 여부 |
 | hardware acceptance | TODO(owner): 실제 로봇 dry-run acceptance criteria 확정 |
 | simulator determinism | TODO(owner): MuJoCo regression scenario와 expected telemetry 정의 |
 | CI | TODO(owner): config load/static validation CI 도입 여부 |

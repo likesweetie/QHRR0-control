@@ -17,17 +17,19 @@ from .command_api import CommandError, CommandService
 from .robot_state_shm import DashboardRobotStateReader
 from .socketcan_io import CAN_FRAME_SIZE, open_can_socket, parse_can_frame
 from .state import MonitorState
+from robot_controller.core.config import load_robot_controller_config
 from robot_controller.core.platform_config import (
     load_platform_config,
     load_yaml_mapping,
     resolve_config_path,
 )
+from robot_controller.safety import OperatorCommandShmWriter
 from robot_controller.utils.can_daemon_client import CANProcessClient
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-CONFIG_PATH = Path(os.environ.get("DASHBOARD_CONFIG", PROJECT_ROOT / "app_config" / "dashboard.yaml"))
+CONFIG_PATH = Path(os.environ.get("DASHBOARD_CONFIG", PROJECT_ROOT / "config" / "app_config" / "dashboard.yaml"))
 if not CONFIG_PATH.is_absolute():
     CONFIG_PATH = PROJECT_ROOT / CONFIG_PATH
 FRONTEND_DIR = ROOT / "frontend"
@@ -55,7 +57,7 @@ def require_no_platform_owned_keys(config: dict[str, Any]) -> None:
     checks = (
         ("can", ("iface", "bitrate")),
         ("can_daemon", ("ipc_socket_path",)),
-        ("robot_controller_state", ("control_shm_name", "dashboard_shm_name")),
+        ("robot_controller_state", ("control_shm_name", "dashboard_shm_name", "operator_shm_name", "operator_shm_size_bytes")),
         (
             "imu",
             (
@@ -126,16 +128,29 @@ def load_config() -> dict[str, Any]:
     require_no_platform_owned_keys(raw)
     if "platform_config" not in raw:
         raise ValueError("Dashboard config key 'platform_config' is required")
+    if "robot_controller_config" not in raw:
+        raise ValueError("Dashboard config key 'robot_controller_config' is required")
     platform_path = resolve_config_path(
         CONFIG_PATH,
         str(raw["platform_config"]),
         "platform_config",
     )
     platform = load_platform_config(platform_path)
+    controller_config_path = resolve_config_path(
+        CONFIG_PATH,
+        str(raw["robot_controller_config"]),
+        "robot_controller_config",
+    )
+    controller_config = load_robot_controller_config(controller_config_path)
+    if controller_config.platform.path != platform.path:
+        raise ValueError(
+            "Dashboard platform_config must match robot_controller_config platform_config"
+        )
 
     config = dict(raw)
     resolve_transmit_ids(config, platform)
     config.pop("platform_config", None)
+    config.pop("robot_controller_config", None)
     config.setdefault("can", {})
     config["can"]["iface"] = platform.can.interface
     config["can"]["bitrate"] = platform.can.bitrate
@@ -144,6 +159,8 @@ def load_config() -> dict[str, Any]:
     config.setdefault("robot_controller_state", {})
     config["robot_controller_state"]["control_shm_name"] = platform.shm.control_state
     config["robot_controller_state"]["dashboard_shm_name"] = platform.shm.dashboard_state
+    config["robot_controller_state"]["operator_shm_name"] = controller_config.shm.operator_command.name
+    config["robot_controller_state"]["operator_shm_size_bytes"] = controller_config.shm.operator_command.size_bytes
     config.setdefault("imu", {})
     config["imu"]["request_id"] = platform.imu.request_id
     config["imu"]["quat_id"] = platform.imu.quat_id
@@ -278,14 +295,6 @@ def parse_hex_payload(value: str) -> bytes:
 
 config = load_config()
 state = make_state(config)
-commands = CommandService(
-    state,
-    CANProcessClient(
-        socket_path=str(nested(config, "can_daemon", "ipc_socket_path")),
-        connect_timeout_s=float(nested(config, "can_daemon", "connect_timeout_s")),
-        rx_enabled=False,
-    ),
-)
 robot_state_reader = (
     DashboardRobotStateReader(
         control_shm_name=str(nested(config, "robot_controller_state", "control_shm_name")),
@@ -295,6 +304,49 @@ robot_state_reader = (
     )
     if bool(nested(config, "robot_controller_state", "enabled"))
     else None
+)
+operator_commands = OperatorCommandShmWriter(
+    name=str(nested(config, "robot_controller_state", "operator_shm_name")),
+    size_bytes=int(nested(config, "robot_controller_state", "operator_shm_size_bytes")),
+    source="dashboard",
+)
+
+
+def current_controller_snapshot() -> dict | None:
+    snapshot = dashboard_snapshot()
+    controller = snapshot.get("robot_controller")
+    if not isinstance(controller, dict):
+        return None
+    if controller.get("status") != "online":
+        return None
+    return controller
+
+
+def current_controller_safety_state() -> str | None:
+    controller = current_controller_snapshot()
+    if controller is None:
+        return None
+    value = controller.get("safety_state")
+    return None if value is None else str(value)
+
+
+def current_controller_safety_reason() -> str | None:
+    controller = current_controller_snapshot()
+    if controller is None:
+        return None
+    value = controller.get("safety_reason")
+    return None if value is None else str(value)
+
+
+commands = CommandService(
+    state,
+    CANProcessClient(
+        socket_path=str(nested(config, "can_daemon", "ipc_socket_path")),
+        connect_timeout_s=float(nested(config, "can_daemon", "connect_timeout_s")),
+        rx_enabled=False,
+    ),
+    controller_safety_state_provider=current_controller_safety_state if robot_state_reader is not None else None,
+    controller_safety_reason_provider=current_controller_safety_reason if robot_state_reader is not None else None,
 )
 app = FastAPI(title="QHRR Robot State")
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
@@ -408,6 +460,7 @@ async def shutdown() -> None:
     await asyncio.gather(*getattr(app.state, "tasks", []), return_exceptions=True)
     if robot_state_reader is not None:
         robot_state_reader.close()
+    operator_commands.close()
 
 
 @app.get("/")
@@ -475,6 +528,33 @@ async def can_send(req: RawSendRequest) -> dict:
     except (ValueError, CommandError, OSError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "tx": tx}
+
+
+@app.post("/api/operator/fault-clear")
+async def operator_fault_clear() -> dict:
+    try:
+        command_id = operator_commands.publish(clear_fault=True)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
+
+
+@app.post("/api/operator/arm")
+async def operator_arm() -> dict:
+    try:
+        command_id = operator_commands.publish(arm=True)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
+
+
+@app.post("/api/operator/estop")
+async def operator_estop() -> dict:
+    try:
+        command_id = operator_commands.publish(estop=True)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
 
 
 @app.post("/api/actuator/{can_id}/enter")

@@ -34,6 +34,7 @@ class PlatformCanConfig:
 class PlatformShmConfig:
     mit_command: str
     aux_command: str
+    operator_command: str
     control_state: str
     dashboard_state: str
 
@@ -204,6 +205,7 @@ def load_platform_config(path: str | Path) -> PlatformConfig:
         shm=PlatformShmConfig(
             mit_command=str(require_key(shm_raw, "mit_command", "shm")),
             aux_command=str(require_key(shm_raw, "aux_command", "shm")),
+            operator_command=str(require_key(shm_raw, "operator_command", "shm")),
             control_state=str(require_key(shm_raw, "control_state", "shm")),
             dashboard_state=str(require_key(shm_raw, "dashboard_state", "shm")),
         ),

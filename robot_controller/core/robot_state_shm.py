@@ -11,6 +11,9 @@ ROBOT_STATE_MAGIC = 0x52535453
 ROBOT_STATE_VERSION = 1
 ROBOT_STATE_HEADER_FMT = "<IIQQI"
 ROBOT_STATE_HEADER_SIZE = struct.calcsize(ROBOT_STATE_HEADER_FMT)
+ROBOT_STATE_SEQ_OFFSET = struct.calcsize("<II")
+ROBOT_STATE_TIMESTAMP_OFFSET = struct.calcsize("<IIQ")
+ROBOT_STATE_PAYLOAD_LEN_OFFSET = struct.calcsize("<IIQQ")
 
 
 class RobotStateShmWriter:
@@ -39,27 +42,13 @@ class RobotStateShmWriter:
         even_seq = self._seq
         timestamp_ns = time.time_ns()
 
-        struct.pack_into(
-            ROBOT_STATE_HEADER_FMT,
-            segment.buf,
-            0,
-            ROBOT_STATE_MAGIC,
-            ROBOT_STATE_VERSION,
-            odd_seq,
-            timestamp_ns,
-            0,
-        )
+        struct.pack_into("<II", segment.buf, 0, ROBOT_STATE_MAGIC, ROBOT_STATE_VERSION)
+        struct.pack_into("<Q", segment.buf, ROBOT_STATE_SEQ_OFFSET, odd_seq)
         segment.buf[ROBOT_STATE_HEADER_SIZE : ROBOT_STATE_HEADER_SIZE + len(payload)] = payload
-        struct.pack_into(
-            ROBOT_STATE_HEADER_FMT,
-            segment.buf,
-            0,
-            ROBOT_STATE_MAGIC,
-            ROBOT_STATE_VERSION,
-            even_seq,
-            timestamp_ns,
-            len(payload),
-        )
+        struct.pack_into("<Q", segment.buf, ROBOT_STATE_TIMESTAMP_OFFSET, timestamp_ns)
+        struct.pack_into("<I", segment.buf, ROBOT_STATE_PAYLOAD_LEN_OFFSET, len(payload))
+        # Commit the seqlock last. Readers treat odd seq as in-progress.
+        struct.pack_into("<Q", segment.buf, ROBOT_STATE_SEQ_OFFSET, even_seq)
 
     def _attach(self) -> shared_memory.SharedMemory:
         if self._segment is None:

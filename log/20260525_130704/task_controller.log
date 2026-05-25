@@ -1,0 +1,37 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260525_130704/task_controller.log
+[task_controller] loaded policy qhrr: /home/kale/QHRR_control/policy/qhrr/qhrr/policy.onnx
+[task_controller] control=qhrr_control_state aux=qhrr_aux_command mit=qhrr_mit_command
+[task_controller] waiting for numeric control_state
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM has no committed payload
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] numeric control_state received
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/kale/QHRR_control/robot_controller/process/task_controller/main.py", line 150, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/process/task_controller/main.py", line 106, in main
+    control_state = control_reader.latest_ready(can_ids)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/process/task_controller/shm_io.py", line 35, in latest_ready
+    state = self.reader.read_latest()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/core/robot_state_shm.py", line 79, in read_latest
+    raise RuntimeError(
+RuntimeError: Robot state SHM layout mismatch: magic=0x52535453, version=0

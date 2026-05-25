@@ -1,6 +1,6 @@
 # CAN Interface
 
-근거 파일: `app_config/platform.yaml`, `app_config/robot_controller.yaml`, `robot_controller/process/can_daemon/main.py`, `robot_controller/runtime_io.py`, `robot_controller/QHRR0_HW/*`, `robot_controller/process/dashboard/backend/can_decode.py`, `robot_controller/process/dashboard/backend/command_api.py`.
+근거 파일: `config/app_config/platform.yaml`, `config/app_config/robot_controller.yaml`, `robot_controller/process/can_daemon/main.py`, `robot_controller/hardware/*`, `robot_controller/QHRR0_HW/*`, `robot_controller/process/dashboard/backend/can_decode.py`, `robot_controller/process/dashboard/backend/command_api.py`.
 
 ## CAN 기본값
 
@@ -60,25 +60,17 @@ MIT command packing:
 | `6` | kd uint8, mapped from `[0, kd_max]` |
 | `7` | torque uint8, mapped from `[-tau_max, tau_max]` |
 
-Runtime MIT limits from `app_config/robot_controller.yaml`:
+Robot controller MIT protocol range is derived from `config/app_config/platform.yaml` `spg_mit`.
+This is a payload quantization range, not a safety envelope:
 
 | Field | Value |
 | --- | --- |
-| `position_rad` | `12` |
-| `velocity_rad_s` | `0.5` |
-| `kp` | `100.0` |
+| `position_rad` | `12.5` |
+| `velocity_rad_s` | `45.0` |
+| `kp` | `500.0` |
 | `kd` | `5.0` |
 | `torque_ff_nm` | `33.0` |
-
-Platform SPG physical/protocol max from `app_config/platform.yaml`:
-
-| Field | Value |
-| --- | --- |
-| `p_max_rad` | `12.5` |
-| `v_max_rad_s` | `45.0` |
-| `kp_max` | `500.0` |
-| `kd_max` | `5.0` |
-| `tau_max_nm` | `33.0` |
+| `feedback_position_rad` | `12.56` |
 
 ## CAN Daemon JSON IPC
 
@@ -131,13 +123,15 @@ cansend vcan0 141#C200000000000000
 
 주의: `C1`은 MIT enter, `C2`는 MIT exit이다. 실제 로봇에서는 command 전송 전 물리 안전 절차를 먼저 확인한다.
 
+MuJoCo SPG MIT simulation driver는 `C1` enter 직후 zero torque command를 latch한다. 이때 angle zero reference는 바꾸지 않으므로 feedback angle 초기값은 MuJoCo qpos에 `config/app_config/platform.yaml`의 actuator별 `sign`, `offset_rad`를 적용한 값이다. 이후에는 최신 `C0` MIT control RX packet이 다음 `C0` 또는 `C2` exit/reset 전까지 계속 적용된다.
+
 ## vcan 기반 테스트
 
 ```bash
 sudo modprobe vcan
 sudo ip link add dev vcan0 type vcan
 sudo ip link set up vcan0
-python3 -m robot_controller.process.can_daemon.main --config app_config/robot_controller.yaml --replace-existing-socket
+python3 -m robot_controller.process.can_daemon.main --config config/app_config/robot_controller.yaml --replace-existing-socket
 ```
 
 다른 터미널:

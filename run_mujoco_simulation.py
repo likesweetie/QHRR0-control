@@ -87,7 +87,7 @@ def terminate(processes: list[subprocess.Popen], timeout_s: float) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Launch QHRR MuJoCo simulation from the repository root.")
-    parser.add_argument("--config", type=Path, default=Path("app_config/mujoco.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("config/app_config/mujoco.yaml"))
     parser.add_argument("--robot")
     parser.add_argument("--build-dir", type=Path, default=Path("build/mujoco"))
     parser.add_argument("--skip-build", action="store_true")

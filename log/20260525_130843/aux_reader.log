@@ -1,0 +1,4 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260525_130843/aux_reader.log
+[aux_reader] publishing aux command shm: qhrr_aux_command
+[aux_reader] joystick device: /dev/input/js0
+[aux_reader] published neutral aux command

@@ -4,6 +4,19 @@ let latestState = null;
 let ws = null;
 let dashboardConfig = null;
 
+const SAFETY_STATES = [
+  "CREATED",
+  "DISARMED",
+  "ARMING",
+  "READY",
+  "RUNNING",
+  "DAMPING",
+  "FAULT_LATCHED",
+  "ESTOP",
+  "SHUTTING_DOWN",
+  "STOPPED",
+];
+
 const fmt = {
   fixed(value, digits = 1, fallback = "-") {
     return Number.isFinite(value) ? value.toFixed(digits) : fallback;
@@ -47,13 +60,15 @@ function render(state) {
   latestState = state;
   renderTopbar(state);
   if ($("loadPercent")) renderBus(state);
+  if ($("safetyMachine")) renderSafetyMachine(state);
   if ($("robotControllerBadge")) renderImu(state);
   if ($("nodeRows")) renderNodes(state.nodes || []);
-  if ($("motorRows")) renderMotors(state.motors || [], state.safety || {});
+  if ($("motorRows")) renderMotors(state.motors || [], state.safety || {}, controllerSafetyState(state));
   if ($("enabledMotorCards")) renderEnabledMotorCards(state.motors || []);
   if ($("recentFrames")) renderFrames(state.recent_frames || []);
   if ($("processTiles")) renderProcesses(state.processes || []);
   if ($("shmStatusBadge")) renderShm(state);
+  if ($("armButton") || $("faultClearButton") || $("estopButton")) syncOperatorControls(state);
   syncControls(state);
 }
 
@@ -93,6 +108,75 @@ function renderBus(state) {
   bar.className = "progress-fill";
   if (load >= 75) bar.classList.add("danger");
   else if (load >= 45) bar.classList.add("warn");
+}
+
+function safetyTone(stateName) {
+  if (stateName === "RUNNING" || stateName === "READY") return "ok";
+  if (stateName === "DAMPING" || stateName === "ARMING" || stateName === "SHUTTING_DOWN") return "warn";
+  if (stateName === "FAULT_LATCHED" || stateName === "ESTOP") return "danger";
+  if (stateName === "DISARMED" || stateName === "STOPPED" || stateName === "CREATED") return "muted";
+  return "muted";
+}
+
+function normalizeSafetyStateName(value) {
+  const normalized = String(value || "UNKNOWN")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || "UNKNOWN";
+}
+
+function renderSafetyMachine(state) {
+  const controller = state.robot_controller || {};
+  const current = controllerSafetyState(state);
+  const action = controller.control_action || (state.safety && state.safety.action) || "-";
+  const reason = controller.safety_reason || (state.safety && state.safety.reason) || "-";
+  const fault = controller.fault_code || (state.safety && state.safety.fault_code) || "-";
+  const tone = safetyTone(current);
+
+  $("machineStateBadge").textContent = current.toLowerCase();
+  $("machineStateBadge").className = `badge ${tone}`;
+  setText("machineControllerState", controller.controller_state || "-");
+  setText("machineAction", action);
+  setText("machineFault", fault || "-");
+  setText("machineAge", fmt.age(controller.age_s));
+  setText("machineReason", reason || "-");
+
+  $("safetyMachine").innerHTML = SAFETY_STATES.map((stateName) => {
+    const active = stateName === current;
+    const itemTone = active ? safetyTone(stateName) : "idle";
+    const label = stateName.replaceAll("_", " ");
+    return `
+      <div class="state-block ${active ? "active" : ""} ${itemTone}" data-state="${stateName}">
+        <span></span>
+        <strong>${escapeHtml(label)}</strong>
+      </div>
+    `;
+  }).join("");
+}
+
+function controllerSafetyState(state) {
+  const controller = state.robot_controller || {};
+  return normalizeSafetyStateName(controller.safety_state || (state.safety && state.safety.state));
+}
+
+function enableBlockedByControllerState(stateName) {
+  return (
+    stateName === "CREATED"
+    || stateName === "DISARMED"
+    || stateName === "FAULT_LATCHED"
+    || stateName === "ESTOP"
+    || stateName === "SHUTTING_DOWN"
+    || stateName === "STOPPED"
+    || stateName === "UNKNOWN"
+  );
+}
+
+function operatorEstopDampingActive(state) {
+  const controller = state.robot_controller || {};
+  const reason = String(controller.safety_reason || (state.safety && state.safety.reason) || "").toUpperCase();
+  return controllerSafetyState(state) === "DAMPING" && reason.includes("E-STOP");
 }
 
 function renderImu(state) {
@@ -207,11 +291,13 @@ function renderNodes(nodes) {
   $("nodeRows").innerHTML = rows.join("");
 }
 
-function renderMotors(motors, safety) {
+function renderMotors(motors, safety, controllerState) {
   const motorGated = !safety.tx_enabled || !safety.allow_actuator_commands;
+  const enableBlocked = enableBlockedByControllerState(controllerState)
+    || operatorEstopDampingActive(latestState || {});
   const seen = new Set();
   const tbody = $("motorRows");
-  syncAllActuatorToggle(motors, motorGated);
+  syncAllActuatorToggle(motors, motorGated, enableBlocked, controllerState);
 
   motors.forEach((motor) => {
     const key = String(motor.can_id);
@@ -261,14 +347,20 @@ function renderMotors(motors, safety) {
         button.dataset.nextAction = enabled ? "exit" : "enter";
         button.classList.toggle("danger", enabled);
         button.classList.toggle("secondary", !enabled);
+        button.disabled = !enabled && enableBlocked;
       }
       if (button.dataset.motorAction === "mit-poll") {
         button.textContent = motor.mit_polling ? "Stop Poll" : "MIT Poll";
         button.classList.toggle("danger", motor.mit_polling);
         button.classList.toggle("secondary", !motor.mit_polling);
       }
-      button.classList.toggle("gated", motorGated);
-      button.title = motorGated ? "Requires TX unlock and allow_actuator_commands=true" : "";
+      const blockedEnable = button.dataset.motorAction === "toggle-enable"
+        && button.dataset.nextAction === "enter"
+        && enableBlocked;
+      button.classList.toggle("gated", motorGated || blockedEnable);
+      button.title = blockedEnable
+        ? `Enable blocked while controller is ${controllerState}`
+        : motorGated ? "Requires TX unlock and allow_actuator_commands=true" : "";
     });
   });
 
@@ -279,7 +371,7 @@ function renderMotors(motors, safety) {
   });
 }
 
-function syncAllActuatorToggle(motors, gated) {
+function syncAllActuatorToggle(motors, gated, enableBlocked, controllerState) {
   const button = $("allActuatorToggle");
   if (!button) return;
   const configured = Array.isArray(motors) ? motors : [];
@@ -289,9 +381,12 @@ function syncAllActuatorToggle(motors, gated) {
   button.textContent = shouldDisable ? "Disable All" : "Enable All";
   button.dataset.nextAction = shouldDisable ? "exit" : "enter";
   button.className = shouldDisable ? "button danger" : "button secondary";
-  button.classList.toggle("gated", gated || configured.length === 0);
-  button.disabled = configured.length === 0;
-  button.title = gated ? "Requires TX unlock and allow_actuator_commands=true" : "";
+  const blockedEnable = !shouldDisable && enableBlocked;
+  button.classList.toggle("gated", gated || blockedEnable || configured.length === 0);
+  button.disabled = configured.length === 0 || blockedEnable;
+  button.title = blockedEnable
+    ? `Enable all blocked while controller is ${controllerState}`
+    : gated ? "Requires TX unlock and allow_actuator_commands=true" : "";
 }
 
 function renderEnabledMotorCards(motors) {
@@ -475,6 +570,24 @@ function syncControls(state) {
   if ($("pollHz")) $("pollHz").value = state.controls.imu_poll_hz || $("pollHz").value;
 }
 
+function syncOperatorControls(state) {
+  const stateName = controllerSafetyState(state);
+  if ($("armButton")) {
+    const canArm = stateName === "DISARMED" || operatorEstopDampingActive(state);
+    $("armButton").disabled = !canArm;
+    $("armButton").title = canArm ? "" : "Arm is available only in DISARMED or E-stop damping";
+  }
+  if ($("faultClearButton")) {
+    const canClear = stateName === "FAULT_LATCHED";
+    $("faultClearButton").disabled = !canClear;
+    $("faultClearButton").title = canClear ? "" : "Fault clear is available only in FAULT_LATCHED";
+  }
+  if ($("estopButton")) {
+    $("estopButton").disabled = false;
+    $("estopButton").title = operatorEstopDampingActive(state) ? "E-stop damping is active" : "";
+  }
+}
+
 async function postJson(url, body = {}) {
   const response = await fetch(url, {
     method: "POST",
@@ -646,6 +759,39 @@ function bindControls() {
           await postJson("/api/imu/poll/start");
           showMessage("IMU polling started");
         }
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+  }
+
+  if ($("armButton")) {
+    $("armButton").addEventListener("click", async () => {
+      try {
+        await postJson("/api/operator/arm");
+        showMessage("Arm requested");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+  }
+
+  if ($("faultClearButton")) {
+    $("faultClearButton").addEventListener("click", async () => {
+      try {
+        await postJson("/api/operator/fault-clear");
+        showMessage("Fault clear requested");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+  }
+
+  if ($("estopButton")) {
+    $("estopButton").addEventListener("click", async () => {
+      try {
+        await postJson("/api/operator/estop");
+        showMessage("ESTOP requested");
       } catch (error) {
         showMessage(error.message, true);
       }

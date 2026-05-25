@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from .can_decode import (
     SPG_CMD_MIT_CONTROL,
     SPG_CMD_MIT_ENTER,
@@ -14,6 +16,28 @@ from robot_controller.utils.hal_can_bus import CANFrame
 
 class CommandError(RuntimeError):
     pass
+
+
+ENABLE_BLOCK_STATES = {
+    "CREATED",
+    "DISARMED",
+    "FAULT_LATCHED",
+    "ESTOP",
+    "SHUTTING_DOWN",
+    "STOPPED",
+}
+
+
+def normalize_state_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = "".join(char if char.isalnum() else "_" for char in value.strip().upper())
+    normalized = "_".join(part for part in normalized.split("_") if part)
+    return normalized or None
+
+
+def is_operator_estop_damping(state_name: str | None, reason: str | None) -> bool:
+    return state_name == "DAMPING" and "E-STOP" in str(reason or "").upper()
 
 
 def format_tx_result(can_id: int, data: bytes, sent_bytes: int) -> dict:
@@ -73,9 +97,18 @@ def pack_mit_payload(
 
 
 class CommandService:
-    def __init__(self, state: MonitorState, can_client: CANProcessClient) -> None:
+    def __init__(
+        self,
+        state: MonitorState,
+        can_client: CANProcessClient,
+        *,
+        controller_safety_state_provider: Callable[[], str | None] | None = None,
+        controller_safety_reason_provider: Callable[[], str | None] | None = None,
+    ) -> None:
         self.state = state
         self.can_client = can_client
+        self.controller_safety_state_provider = controller_safety_state_provider
+        self.controller_safety_reason_provider = controller_safety_reason_provider
         self._connected = False
 
     def lock_tx(self) -> None:
@@ -97,6 +130,7 @@ class CommandService:
         return self.can_client
 
     def send_raw(self, can_id: int, data: bytes) -> dict:
+        self.reject_motor_enable_when_blocked(can_id, data)
         can_client = self.require_tx()
         try:
             can_client.send(CANFrame(can_id=can_id, data=data))
@@ -107,6 +141,31 @@ class CommandService:
         self.state.mark_tx(can_id, data)
         self.state.socket_error = None
         return format_tx_result(can_id, data, CAN_FRAME_SIZE)
+
+    def reject_motor_enable_when_blocked(self, can_id: int, data: bytes) -> None:
+        if not data or data[0] != SPG_CMD_MIT_ENTER:
+            return
+        if self.state.actuator_config_for_can_id(can_id) is None:
+            return
+        state_name = self.controller_safety_state()
+        if self.controller_safety_state_provider is not None and state_name is None:
+            raise CommandError("Motor enable is blocked because controller safety state is unavailable")
+        if state_name in ENABLE_BLOCK_STATES:
+            raise CommandError(
+                f"Motor enable is blocked while controller safety state is {state_name}"
+            )
+        if is_operator_estop_damping(state_name, self.controller_safety_reason()):
+            raise CommandError("Motor enable is blocked while controller is in operator E-stop damping")
+
+    def controller_safety_state(self) -> str | None:
+        if self.controller_safety_state_provider is None:
+            return None
+        return normalize_state_name(self.controller_safety_state_provider())
+
+    def controller_safety_reason(self) -> str | None:
+        if self.controller_safety_reason_provider is None:
+            return None
+        return self.controller_safety_reason_provider()
 
     def request_imu_all(self) -> dict:
         return self.send_raw(self.state.imu_request_id, bytes([self.state.imu_cmd_get_all]))

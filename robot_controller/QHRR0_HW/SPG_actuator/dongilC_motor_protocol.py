@@ -39,11 +39,17 @@ def require_range(x: float, lo: float, hi: float, field: str) -> None:
         raise ValueError(f"{field} out of range: {x} not in [{lo}, {hi}]")
 
 
+def round_half_away_from_zero(x: float) -> int:
+    if x >= 0.0:
+        return int(math.floor(x + 0.5))
+    return int(math.ceil(x - 0.5))
+
+
 def float_to_uint(x: float, x_min: float, x_max: float, bits: int) -> int:
     require_range(x, x_min, x_max, "MIT field")
     span = x_max - x_min
     max_int = (1 << bits) - 1
-    return int(round((x - x_min) * max_int / span))
+    return round_half_away_from_zero((x - x_min) * max_int / span)
 
 
 def wrap_u14(x: int) -> int:
@@ -70,7 +76,7 @@ def u14_count_to_rad(cnt: int) -> float:
 
 def rad_to_u14_count(rad: float) -> int:
     rad_wrapped = rad % (2.0 * math.pi)
-    return int(round(rad_wrapped / (2.0 * math.pi) * ENC_MOD)) % ENC_MOD
+    return round_half_away_from_zero(rad_wrapped / (2.0 * math.pi) * ENC_MOD) % ENC_MOD
 
 
 def signed_u14_count_to_rad(cnt: int) -> float:
@@ -89,7 +95,7 @@ def signed_u14_count_to_rad(cnt: int) -> float:
 @dataclass(frozen=True)
 class SPGMITConfig:
     """
-    MIT-style command packing limits.
+    MIT-style command packing and feedback normalization ranges.
 
     These limits must match the actuator firmware configuration.
     """
@@ -99,6 +105,7 @@ class SPGMITConfig:
     kp_max: float = 500.0
     kd_max: float = 5.0
     tau_max: float = 33.0
+    feedback_position_max: float = 12.56
 
 
 @dataclass(frozen=True)
@@ -106,7 +113,7 @@ class SPGMotorStatus:
     temp_c: int
     iq_counts: int
     speed_dps: int
-    enc_u16: int
+    position_i16: int
 
 
 @dataclass(frozen=True)
@@ -115,6 +122,14 @@ class SPGEncoderData:
     encoder_position_u16: int
     encoder_original_u16: int
     encoder_offset_u16: int
+
+
+@dataclass(frozen=True)
+class SPGMITParams:
+    v_max_rad_s: int
+    tau_max_nm: int
+    kt_out_nm_per_a: float
+    gear_ratio: float
 
 
 # ---------------------------------------------------------------------------
@@ -133,10 +148,13 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
     CMD_MIT_ENTER = 0xC1
     CMD_MIT_EXIT = 0xC2
     CMD_MIT_SET_ZERO = 0xC3
+    CMD_READ_MIT_PARAMS = 0xC4
+    CMD_WRITE_MIT_PARAMS = 0xC5
 
     CMD_READ_ENCODER_DATA = 0x90
     CMD_WRITE_CURRENT_POS_AS_ZERO = 0x19
     CMD_WRITE_ENCODER_OFFSET = 0x91
+    CMD_CLEAR_ERROR_FLAG = 0x9B
 
     def __init__(
         self,
@@ -144,7 +162,7 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         feedback_id: int | None = None,
         mit_config: SPGMITConfig | None = None,
         gear_ratio: float = 1.0,
-        feedback_speed_is_motor_side: bool = True,
+        feedback_speed_is_motor_side: bool = False,
         expose_single_turn_position: bool = False,
         iq_count_to_amp: float | None = None,
         torque_constant_nm_per_a: float | None = None,
@@ -166,13 +184,15 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
                 velocity/position conversion.
 
             feedback_speed_is_motor_side:
-                If True, decoded speed_dps is divided by gear_ratio before being
-                exposed as velocity_rad_s.
+                The current OpenRobot MIT status response is output-side speed.
+                Set this True only for older firmware that returns motor-side
+                speed_dps and needs division by gear_ratio.
 
             expose_single_turn_position:
-                If True, 14-bit single-turn encoder position is exposed as
-                ActuatorState.position_rad. For continuous joint position,
-                use a driver-side unwrap estimator instead.
+                If True, MIT feedback position is exposed as
+                ActuatorState.position_rad. In OpenRobot v14 this is signed
+                int16 output-side position in the MIT zero frame, not raw
+                14-bit encoder position.
 
             iq_count_to_amp:
                 Optional scale from iq_counts to phase current [A].
@@ -226,12 +246,16 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         if cmd == self.CMD_READ_ENCODER_DATA:
             return self._decode_encoder_data(frame.data)
 
+        if cmd == self.CMD_READ_MIT_PARAMS:
+            return self._decode_mit_params(frame.data)
+
         if cmd in (
             self.CMD_MIT_ENTER,
             self.CMD_MIT_EXIT,
             self.CMD_WRITE_CURRENT_POS_AS_ZERO,
             self.CMD_WRITE_ENCODER_OFFSET,
             self.CMD_MIT_SET_ZERO,
+            self.CMD_CLEAR_ERROR_FLAG,
         ):
             return self._decode_ack_like_frame(frame.data)
 
@@ -251,6 +275,12 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         return CANFrame(
             can_id=self.command_id,
             data=bytes([self.CMD_MIT_EXIT, 0, 0, 0, 0, 0, 0, 0]),
+        )
+
+    def encode_clear_fault_frame(self) -> CANFrame:
+        return CANFrame(
+            can_id=self.command_id,
+            data=bytes([self.CMD_CLEAR_ERROR_FLAG, 0, 0, 0, 0, 0, 0, 0]),
         )
 
     def encode_torque_command_frame(self, torque_nm: float) -> CANFrame:
@@ -291,6 +321,42 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         payload = self._pack_mit_set_zero_payload(offset_deg=offset_deg)
         return CANFrame(can_id=self.command_id, data=payload)
 
+    def encode_read_mit_params_frame(self) -> CANFrame:
+        return CANFrame(
+            can_id=self.command_id,
+            data=bytes([self.CMD_READ_MIT_PARAMS, 0, 0, 0, 0, 0, 0, 0]),
+        )
+
+    def encode_write_mit_params_frame(
+        self,
+        *,
+        v_max_rad_s: int,
+        tau_max_nm: int,
+        kt_input_nm_per_a: float,
+        gear_ratio: float,
+    ) -> CANFrame:
+        if not (0 <= int(v_max_rad_s) <= 255):
+            raise ValueError("v_max_rad_s must fit uint8")
+        if not (0 <= int(tau_max_nm) <= 255):
+            raise ValueError("tau_max_nm must fit uint8")
+        kt_raw = round_half_away_from_zero(kt_input_nm_per_a * 1000.0)
+        gear_ratio_raw = round_half_away_from_zero(gear_ratio * 100.0)
+        if not (0 <= kt_raw <= 0xFFFF):
+            raise ValueError(
+                "kt_input_nm_per_a is out of uint16 range for 0.001 Nm/A encoding"
+            )
+        if not (0 <= gear_ratio_raw <= 0xFFFF):
+            raise ValueError("gear_ratio is out of uint16 range for 0.01 encoding")
+
+        data = bytearray(8)
+        data[0] = self.CMD_WRITE_MIT_PARAMS
+        data[1] = int(v_max_rad_s) & 0xFF
+        data[2] = int(tau_max_nm) & 0xFF
+        struct.pack_into("<H", data, 3, kt_raw)
+        struct.pack_into("<H", data, 5, gear_ratio_raw)
+        data[7] = 0
+        return CANFrame(can_id=self.command_id, data=bytes(data))
+
     def encode_read_encoder_data_frame(self) -> CANFrame:
         return CANFrame(
             can_id=self.command_id,
@@ -319,7 +385,11 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
 
         return CANFrame(can_id=self.command_id, data=payload)
 
-    def encode_set_current_position_as_rad_frame(self, original_u16: int, desired_rad: float) -> CANFrame:
+    def encode_set_current_position_as_rad_frame(
+        self,
+        original_u16: int,
+        desired_rad: float,
+    ) -> CANFrame:
         """
         Create encoder-offset write frame so the current physical position is
         interpreted as desired_rad.
@@ -348,8 +418,11 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         if self.feedback_speed_is_motor_side:
             velocity_rad_s /= self.gear_ratio
 
-        single_turn_motor_rad = u14_count_to_rad(status.enc_u16)
-        single_turn_output_rad = single_turn_motor_rad / self.gear_ratio
+        position_output_rad = (
+            status.position_i16
+            / 32767.0
+            * self.mit_config.feedback_position_max
+        )
 
         current_a = None
         torque_nm = None
@@ -365,7 +438,7 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
                 * self.gear_efficiency
             )
 
-        position_rad = single_turn_output_rad if self.expose_single_turn_position else None
+        position_rad = position_output_rad if self.expose_single_turn_position else None
 
         return ActuatorState(
             position_rad=position_rad,
@@ -378,9 +451,9 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
                 "cmd": self.CMD_MIT_CONTROL,
                 "iq_counts": status.iq_counts,
                 "speed_dps": status.speed_dps,
-                "enc_u16": status.enc_u16,
-                "single_turn_motor_rad": single_turn_motor_rad,
-                "single_turn_output_rad": single_turn_output_rad,
+                "position_i16": status.position_i16,
+                "feedback_position_max_rad": self.mit_config.feedback_position_max,
+                "position_output_rad": position_output_rad,
             },
         )
 
@@ -413,29 +486,65 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
             },
         )
 
+    def _decode_mit_params(self, payload8: bytes) -> ActuatorState:
+        params = self._parse_mit_params(payload8)
+
+        return ActuatorState(
+            mode="MIT_PARAMS",
+            last_feedback_t=time.monotonic(),
+            raw={
+                "cmd": self.CMD_READ_MIT_PARAMS,
+                "v_max_rad_s": params.v_max_rad_s,
+                "tau_max_nm": params.tau_max_nm,
+                "kt_out_nm_per_a": params.kt_out_nm_per_a,
+                "gear_ratio": params.gear_ratio,
+            },
+        )
+
     def _decode_ack_like_frame(self, payload8: bytes) -> ActuatorState:
         if len(payload8) != 8:
             raise ValueError("SPG ACK payload must be 8 bytes")
 
         cmd = payload8[0]
-        offset_u16 = struct.unpack("<H", payload8[6:8])[0]
+        raw = {"cmd": cmd}
+
+        if cmd == self.CMD_MIT_SET_ZERO:
+            offset_i16 = struct.unpack("<h", payload8[6:8])[0]
+            offset_deg = offset_i16 * 0.01
+            raw.update(
+                {
+                    "offset_i16": offset_i16,
+                    "offset_deg": offset_deg,
+                    "offset_rad": math.radians(offset_deg),
+                }
+            )
+        elif cmd in (
+            self.CMD_WRITE_CURRENT_POS_AS_ZERO,
+            self.CMD_WRITE_ENCODER_OFFSET,
+        ):
+            offset_u16 = struct.unpack("<H", payload8[6:8])[0]
+            raw.update(
+                {
+                    "encoder_offset_u16": offset_u16,
+                    "encoder_offset_rad_motor": u14_count_to_rad(offset_u16),
+                }
+            )
+        elif cmd == self.CMD_CLEAR_ERROR_FLAG:
+            raw["fault_code_after_clear"] = int(payload8[1])
 
         return ActuatorState(
             is_enabled=self._ack_enabled_hint(cmd),
             mode=self._ack_mode(cmd),
+            fault_code=int(payload8[1]) if cmd == self.CMD_CLEAR_ERROR_FLAG else None,
             last_feedback_t=time.monotonic(),
-            raw={
-                "cmd": cmd,
-                "ack_offset_u16": offset_u16,
-                "ack_offset_rad_motor": u14_count_to_rad(offset_u16),
-            },
+            raw=raw,
         )
 
     @classmethod
     def _ack_enabled_hint(cls, cmd: int) -> bool | None:
         if cmd == cls.CMD_MIT_ENTER:
             return True
-        if cmd == cls.CMD_MIT_EXIT:
+        if cmd in (cls.CMD_MIT_EXIT, cls.CMD_CLEAR_ERROR_FLAG):
             return False
         return None
 
@@ -447,6 +556,8 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
             return "MIT_EXIT_ACK"
         if cmd == cls.CMD_MIT_SET_ZERO:
             return "MIT_SET_ZERO_ACK"
+        if cmd == cls.CMD_CLEAR_ERROR_FLAG:
+            return "CLEAR_ERROR_ACK"
         if cmd == cls.CMD_WRITE_CURRENT_POS_AS_ZERO:
             return "WRITE_CURRENT_POS_AS_ZERO_ACK"
         if cmd == cls.CMD_WRITE_ENCODER_OFFSET:
@@ -461,13 +572,13 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         temp_c = struct.unpack("b", payload8[1:2])[0]
         iq_counts = struct.unpack("<h", payload8[2:4])[0]
         speed_dps = struct.unpack("<h", payload8[4:6])[0]
-        enc_u16 = struct.unpack("<H", payload8[6:8])[0]
+        position_i16 = struct.unpack("<h", payload8[6:8])[0]
 
         return SPGMotorStatus(
             temp_c=temp_c,
             iq_counts=iq_counts,
             speed_dps=speed_dps,
-            enc_u16=wrap_u14(enc_u16),
+            position_i16=position_i16,
         )
 
     @staticmethod
@@ -485,6 +596,21 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
             encoder_position_u16=wrap_u14(encoder_position_u16),
             encoder_original_u16=wrap_u14(encoder_original_u16),
             encoder_offset_u16=wrap_u14(encoder_offset_u16),
+        )
+
+    @staticmethod
+    def _parse_mit_params(payload8: bytes) -> SPGMITParams:
+        if len(payload8) != 8 or payload8[0] != SPGActuatorProtocol.CMD_READ_MIT_PARAMS:
+            raise ValueError("Invalid SPG MIT params response")
+
+        kt_out_raw = struct.unpack("<H", payload8[3:5])[0]
+        gear_ratio_raw = struct.unpack("<H", payload8[5:7])[0]
+
+        return SPGMITParams(
+            v_max_rad_s=int(payload8[1]),
+            tau_max_nm=int(payload8[2]),
+            kt_out_nm_per_a=kt_out_raw * 0.001,
+            gear_ratio=gear_ratio_raw * 0.01,
         )
 
     # ------------------------------------------------------------------
@@ -525,7 +651,7 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         return bytes(data)
 
     def _pack_mit_set_zero_payload(self, offset_deg: float = 0.0) -> bytes:
-        offset_raw = int(round(offset_deg * 100.0))
+        offset_raw = round_half_away_from_zero(offset_deg * 100.0)
 
         if not (-32768 <= offset_raw <= 32767):
             raise ValueError(

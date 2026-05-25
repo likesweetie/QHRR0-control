@@ -1,0 +1,116 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260525_150211/task_controller.log
+[task_controller] loaded policy qhrr: /home/kale/QHRR_control/policy/qhrr/qhrr/policy.onnx
+[task_controller] control=qhrr_control_state aux=qhrr_aux_command mit=qhrr_mit_command
+[task_controller] target_policy_output_hz=50.000 rate_log_interval_s=1.0
+[task_controller] waiting for numeric control_state
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] still waiting: control_state SHM is not ready for policy input: actuator 0x141 position_rad is not available yet
+[task_controller] numeric control_state received
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=49.82 published=50 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=100 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=150 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=200 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=250 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=300 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=350 target_hz=50.00
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=48.85 published=399 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=449 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=499 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=549 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=599 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=649 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=699 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.83 published=749 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=799 target_hz=50.00
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=48.85 published=848 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=898 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=948 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=998 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1048 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1098 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1148 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1198 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1248 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1298 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1348 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1398 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1448 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1498 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1548 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1598 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1648 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1698 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1748 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1798 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1848 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1898 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1948 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=1998 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2048 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2098 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=2148 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2198 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2248 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=2298 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=2348 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2398 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.83 published=2448 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=2498 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=2548 target_hz=50.00
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=48.84 published=2597 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2647 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.83 published=2697 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=2747 target_hz=50.00
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=47.85 published=2795 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=2845 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=2895 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.83 published=2945 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=2995 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=3045 target_hz=50.00
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=48.86 published=3094 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.83 published=3144 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3194 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3244 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3294 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3344 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3394 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3444 target_hz=50.00
+[task_controller] waiting for numeric control_state: control_state SHM has no committed payload
+[task_controller] policy_output_rate_hz=48.86 published=3494 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=3544 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3594 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=3644 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=3694 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3744 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3794 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=3844 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=3894 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=3944 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=3994 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=4044 target_hz=50.00
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/kale/QHRR_control/robot_controller/process/task_controller/main.py", line 187, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/process/task_controller/main.py", line 129, in main
+    control_state = control_reader.latest_ready(can_ids)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/process/task_controller/shm_io.py", line 35, in latest_ready
+    state = self.reader.read_latest()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/core/robot_state_shm.py", line 79, in read_latest
+    raise RuntimeError(
+RuntimeError: Robot state SHM layout mismatch: magic=0x0, version=1

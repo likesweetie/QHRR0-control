@@ -26,6 +26,29 @@
     </nav>
 
     <main class="dashboard overview-grid">
+      <section class="panel machine-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Safety</p>
+            <h2>State Machine</h2>
+          </div>
+          <span id="machineStateBadge" class="badge muted">unknown</span>
+        </div>
+        <div id="safetyMachine" class="state-machine" aria-label="Robot safety state machine"></div>
+        <div class="machine-detail-grid">
+          <div><span>Controller</span><strong id="machineControllerState">-</strong></div>
+          <div><span>Action</span><strong id="machineAction">-</strong></div>
+          <div><span>Fault</span><strong id="machineFault">-</strong></div>
+          <div><span>Age</span><strong id="machineAge">never</strong></div>
+        </div>
+        <p id="machineReason" class="machine-reason">-</p>
+        <div class="operator-actions">
+          <button id="armButton" class="button primary" type="button">Arm</button>
+          <button id="faultClearButton" class="button secondary" type="button">Fault Clear</button>
+          <button id="estopButton" class="button danger" type="button">ESTOP</button>
+        </div>
+      </section>
+
       <section class="panel bus-panel">
         <div class="panel-heading">
           <div>

@@ -1,0 +1,118 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260525_125315/dashboard.log
+/home/kale/QHRR_control/robot_controller/process/dashboard/backend/app.py:395: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+/home/kale/QHRR_control/robot_controller/process/dashboard/backend/app.py:404: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("shutdown")
+INFO:     Started server process [139756]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56178 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56202 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56218 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56230 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56232 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56234 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56236 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35664 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35678 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35686 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35702 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35716 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35726 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35728 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35730 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56178 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35734 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35750 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:56178 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35760 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56192 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56192 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49720 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56192 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56192 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49736 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56192 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:56192 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49744 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [139756]

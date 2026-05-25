@@ -35,12 +35,6 @@ struct SPGMITConfig {
   double iq_full_scale_count = 2048.0;
   double iq_full_scale_current_a = 33.0;
 
-  // Virtual firmware 내부 feedback 생성 제한.
-  // request-response에 가까운 동작을 원하면 false 유지.
-  // 매 step 상태 송신을 원하면 true로 두고 period를 사용하면 됩니다.
-  bool periodic_feedback = false;
-  double periodic_feedback_s = 0.001;
-
   // 0xC3 직후 잔류 명령 무시 시간.
   // 문서에는 Set Zero 직후 20 ms hold counter가 언급되어 있습니다.
   double set_zero_hold_s = 0.020;
@@ -149,6 +143,8 @@ private:
   // MIT zero coordinate:
   //   p_mit = p_physical - mit_zero_reference_rad_
   //
+  // MIT enter does not change this reference. Initial p_mit follows the
+  // MuJoCo logical joint angle from ActuatorBinding sign/offset.
   // 0xC3 offset=0이면 현재 위치가 0이 되도록 reference를 잡습니다.
   // 0xC3 offset=3000이면 현재 위치가 +30deg가 되도록 reference를 잡습니다.
   double mit_zero_reference_rad_ = 0.0;
@@ -158,7 +154,6 @@ private:
 
   double ignore_control_until_time_ = -1.0;
 
-  double last_periodic_feedback_time_ = -1.0;
 };
 
 }  // namespace mjcan

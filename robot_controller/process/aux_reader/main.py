@@ -87,7 +87,7 @@ def _publish(writer: RobotStateShmWriter, axes: list[float], buttons: list[bool]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="QHRR MuJoCo joystick auxiliary reader")
-    parser.add_argument("--controller-config", type=Path, default=Path(os.environ.get("ROBOT_CONTROLLER_CONFIG", "app_config/robot_controller.yaml")))
+    parser.add_argument("--controller-config", type=Path, default=Path(os.environ.get("ROBOT_CONTROLLER_CONFIG", "config/app_config/robot_controller.yaml")))
     parser.add_argument("--joystick-dev", default=os.environ.get("JOYSTICK_DEV", "/dev/input/js0"))
     parser.add_argument("--poll-sleep-s", type=float, default=0.001)
     return parser.parse_args()

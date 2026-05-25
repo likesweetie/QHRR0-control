@@ -65,6 +65,14 @@ class ShmManager:
         self._segments[self.config.aux_command.name] = aux_command
         self._init_robot_state_segment(aux_command)
 
+        operator_command = shared_memory.SharedMemory(
+            name=self.config.operator_command.name,
+            create=True,
+            size=int(self.config.operator_command.size_bytes),
+        )
+        self._segments[self.config.operator_command.name] = operator_command
+        self._init_robot_state_segment(operator_command)
+
         dashboard_state = shared_memory.SharedMemory(
             name=self.config.dashboard_state.name,
             create=True,
@@ -91,6 +99,7 @@ class ShmManager:
         return (
             self.config.mit_command.name,
             self.config.aux_command.name,
+            self.config.operator_command.name,
             self.config.control_state.name,
             self.config.dashboard_state.name,
         )

@@ -3,11 +3,14 @@ from __future__ import annotations
 import logging
 import time
 
+from .command import CommandReadResult, CommandReadStatus, CommandValidator, ShmPolicyCommandSource
+from .control_loop import ControlTickResult, RobotControlLoop
 from .core.config import RobotControllerConfig
 from .core.state import RobotControllerState
-from .runtime_io import RobotControllerRuntimeIO
-from .utils.process_supervisor import ProcessSupervisor
-from .utils.shm_command_router import ShmMitCommandRouter
+from .hardware import RobotHardware
+from .processes import ChildProcessManager
+from .safety import OperatorCommandShmSource, SafetyController
+from .state import StatePublisher
 from .utils.shm_manager import ShmManager
 
 
@@ -19,9 +22,28 @@ class RobotController:
         self.config = config
         self.state = RobotControllerState.CREATED
         self.shm_manager = ShmManager(config.shm)
-        self.process_supervisor = ProcessSupervisor(config.processes)
-        self.command_router = ShmMitCommandRouter(config.shm.mit_command)
-        self.runtime_io = RobotControllerRuntimeIO(config, self.process_supervisor)
+        self.processes = ChildProcessManager(config.processes)
+        self.policy_command_source = ShmPolicyCommandSource(config.shm.mit_command)
+        self.operator_command_source = OperatorCommandShmSource(config.shm.operator_command.name)
+        self.command_validator = CommandValidator(
+            expected_can_ids=config.can.motors.can_ids,
+            protocol_range=config.can.mit_protocol_range,
+        )
+        self.hardware = RobotHardware(config)
+        self.safety = SafetyController(config)
+        self.state_publisher = StatePublisher(
+            config,
+            process_status_provider=self.processes.status,
+        )
+        self.control_loop = RobotControlLoop(
+            hardware=self.hardware,
+            policy_command_source=self.policy_command_source,
+            operator_command_source=self.operator_command_source,
+            command_validator=self.command_validator,
+            safety=self.safety,
+            state_publisher=self.state_publisher,
+            processes=self.processes,
+        )
         self._running = False
 
     def start(self) -> None:
@@ -32,21 +54,30 @@ class RobotController:
             self.shm_manager.create_all()
 
             self.state = RobotControllerState.START_CAN_DAEMON
-            self.process_supervisor.start_by_name("can_daemon")
-            self.runtime_io.connect_can_daemon()
+            self.processes.start_by_name("can_daemon")
+            self.hardware.connect_can_daemon()
 
             self.state = RobotControllerState.BRINGUP_IMU
-            self.runtime_io.bringup_imu()
+            self.hardware.imu.bringup()
 
             self.state = RobotControllerState.BRINGUP_MOTORS
-            self.runtime_io.bringup_motors()
+            if self.config.runtime.mode == "simulation":
+                self.hardware.motors.bringup()
 
             self.state = RobotControllerState.START_CHILD_PROCESSES
-            self.process_supervisor.start_all()
+            self.processes.start_all()
 
             self.state = RobotControllerState.RUNNING
+            startup_decision = self.safety.start()
             self._running = True
-            self.runtime_io.publish_states(self.state)
+            self.state_publisher.publish(
+                feedback=self.hardware.read_feedback(),
+                command=self.policy_command_source.read_latest(),
+                controller_state=self.state,
+                safety_state=self.safety.state,
+                decision=startup_decision,
+                force=True,
+            )
         except Exception:
             self.state = RobotControllerState.ERROR
             self.shutdown()
@@ -63,26 +94,15 @@ class RobotController:
             if not self._running:
                 break
 
-            self.runtime_io.request_imu_on_tick()
-
-            batch = self.command_router.read_latest_batch()
-            if batch is None:
-                self.runtime_io.send_damping_once("no MIT command batch available")
-            elif not self.command_router.is_fresh(batch, self.config.can.command_timeout_s):
-                self.runtime_io.send_damping_once(
-                    f"MIT command batch is stale: source={batch.source}"
-                )
-            else:
-                self.runtime_io.validate_mit_batch(batch)
-                self.runtime_io.mark_mit_command_active()
-                self.runtime_io.send_mit_batch(batch)
-
-            self.runtime_io.publish_due_states(self.state)
+            self.run_once()
 
             next_t += control_period_s
             now = time.perf_counter()
             if next_t < now:
                 next_t = now + control_period_s
+
+    def run_once(self) -> ControlTickResult:
+        return self.control_loop.run_once(self.state)
 
     def request_stop(self) -> None:
         self._running = False
@@ -94,23 +114,50 @@ class RobotController:
         self.state = RobotControllerState.SHUTTING_DOWN
         self._running = False
 
-        self.runtime_io.shutdown_actuators()
-        self.process_supervisor.stop_all(self.config.robot_controller.shutdown_timeout_s)
+        shutdown_decision = self.safety.begin_shutdown()
         try:
-            self.runtime_io.publish_states(self.state)
+            if self.hardware.status().can_connected:
+                self.hardware.motors.shutdown("controller shutdown")
+        except Exception as exc:
+            logger.warning("Actuator shutdown warning: %s", exc)
+
+        self.processes.stop_all(self.config.robot_controller.shutdown_timeout_s)
+        try:
+            self.state_publisher.publish(
+                feedback=self.hardware.read_feedback(),
+                command=self._read_command_for_shutdown(),
+                controller_state=self.state,
+                safety_state=self.safety.state,
+                decision=shutdown_decision,
+                force=True,
+            )
         except FileNotFoundError as exc:
             logger.warning("Robot state SHM was not available during shutdown: %s", exc)
 
-        self.runtime_io.close()
-        self.command_router.close()
+        self.state_publisher.close()
+        self.hardware.close()
+        self.policy_command_source.close()
+        self.operator_command_source.close()
         self.shm_manager.close_all()
         if self.config.shm.unlink_on_shutdown:
             self.shm_manager.unlink_all()
 
         self.state = RobotControllerState.STOPPED
+        self.safety.stop()
 
     def get_actuator_states(self):
-        return self.runtime_io.get_actuator_states()
+        return self.hardware.motors.get_states()
 
     def get_imu_state(self):
-        return self.runtime_io.get_imu_state()
+        return self.hardware.imu.get_state()
+
+    def _read_command_for_shutdown(self) -> CommandReadResult:
+        try:
+            return self.policy_command_source.read_latest()
+        except Exception as exc:
+            return CommandReadResult(
+                command=None,
+                status=CommandReadStatus.BAD_FORMAT,
+                reason=str(exc),
+                timestamp=None,
+            )

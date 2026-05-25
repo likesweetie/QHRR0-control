@@ -1,0 +1,43 @@
+platform_config: platform.yaml
+robot_controller_config: robot_controller.yaml
+
+dashboard:
+  host: 127.0.0.1
+  port: 8000
+  state_hz: 24
+  transmit_ids:
+    - label: E2Box request
+      platform_ref: imu_request
+      payload: "03"
+    - label: RL hip roll
+      actuator: RL_hip_roll
+      payload: "C100000000000000"
+    - label: RL hip pitch
+      actuator: RL_hip_pitch
+      payload: "C100000000000000"
+    - label: RL knee pitch
+      actuator: RL_knee_pitch
+      payload: "C100000000000000"
+
+robot_controller_state:
+  enabled: true
+  stale_timeout_s: 0.5
+
+can:
+  bus_window_s: 1.0
+  heartbeat_window_s: 1.0
+  node_timeout_s: 0.25
+  stuff_factor: 1.15
+
+can_daemon:
+  connect_timeout_s: 1.0
+
+imu:
+  default_poll_hz: 400
+
+spg:
+  default_mit_poll_hz: 500
+
+safety:
+  tx_enabled_by_default: false
+  allow_actuator_commands: true

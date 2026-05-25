@@ -39,11 +39,18 @@ class RobotStateShmConfig:
 
 
 @dataclass
+class OperatorCommandShmConfig:
+    name: str
+    size_bytes: int
+
+
+@dataclass
 class ShmConfig:
     cleanup_stale_on_start: bool
     unlink_on_shutdown: bool
     mit_command: MitCommandShmConfig
     aux_command: RobotStateShmConfig
+    operator_command: OperatorCommandShmConfig
     control_state: RobotStateShmConfig
     dashboard_state: RobotStateShmConfig
 
@@ -78,12 +85,13 @@ class CANDaemonConfig:
 
 
 @dataclass
-class MitLimitsConfig:
+class MitProtocolRangeConfig:
     position_rad: float
     velocity_rad_s: float
     kp: float
     kd: float
     torque_ff_nm: float
+    feedback_position_rad: float
 
 
 @dataclass
@@ -94,7 +102,7 @@ class CanConfig:
     daemon: CANDaemonConfig
     motors: MotorConfig
     imu: ImuConfig
-    mit_limits: MitLimitsConfig
+    mit_protocol_range: MitProtocolRangeConfig
 
 
 @dataclass
@@ -105,8 +113,33 @@ class RobotControllerCoreConfig:
 
 
 @dataclass
+class RuntimeModeConfig:
+    mode: str
+
+
+@dataclass
+class HardwareSafetyConfig:
+    allow_real_can: bool
+    require_manual_arm: bool
+    require_estop: bool
+    allow_enable_on_start: bool
+    allowed_can_interfaces: list[str]
+
+
+@dataclass
+class SafetyPolicyConfig:
+    velocity_damping_kd: float
+    damping_timeout_s: float
+    command_loss_action: str
+    feedback_stale_action: str
+
+
+@dataclass
 class RobotControllerConfig:
     platform: PlatformConfig
+    runtime: RuntimeModeConfig
+    hardware: HardwareSafetyConfig
+    safety: SafetyPolicyConfig
     robot_controller: RobotControllerCoreConfig
     shm: ShmConfig
     can: CanConfig
@@ -192,6 +225,18 @@ def _load_processes(path: Path) -> list[ProcessConfig]:
 
 
 def _validate_config(config: RobotControllerConfig) -> None:
+    if config.runtime.mode not in ("simulation", "hardware"):
+        raise ConfigError("runtime.mode must be 'simulation' or 'hardware'")
+    if not config.hardware.allowed_can_interfaces:
+        raise ConfigError("hardware.allowed_can_interfaces must not be empty")
+    if config.safety.velocity_damping_kd < 0.0:
+        raise ConfigError("safety.velocity_damping_kd must be >= 0")
+    if config.safety.damping_timeout_s <= 0.0:
+        raise ConfigError("safety.damping_timeout_s must be > 0")
+    if config.safety.command_loss_action not in ("damping", "disable", "fault"):
+        raise ConfigError("safety.command_loss_action must be damping, disable, or fault")
+    if config.safety.feedback_stale_action not in ("damping", "disable", "fault"):
+        raise ConfigError("safety.feedback_stale_action must be damping, disable, or fault")
     if config.robot_controller.control_hz <= 0.0:
         raise ConfigError("robot_controller.control_hz must be > 0")
     if config.robot_controller.shutdown_timeout_s < 0.0:
@@ -204,6 +249,10 @@ def _validate_config(config: RobotControllerConfig) -> None:
         raise ConfigError("shm.control_state.publish_hz must be > 0")
     if config.shm.aux_command.size_bytes < 4096:
         raise ConfigError("shm.aux_command.size_bytes must be >= 4096")
+    if config.shm.aux_command.publish_hz <= 0.0:
+        raise ConfigError("shm.aux_command.publish_hz must be > 0")
+    if config.shm.operator_command.size_bytes < 4096:
+        raise ConfigError("shm.operator_command.size_bytes must be >= 4096")
     if config.shm.dashboard_state.size_bytes < 4096:
         raise ConfigError("shm.dashboard_state.size_bytes must be >= 4096")
     if config.shm.dashboard_state.publish_hz <= 0.0:
@@ -211,10 +260,11 @@ def _validate_config(config: RobotControllerConfig) -> None:
     state_names = {
         config.shm.mit_command.name,
         config.shm.aux_command.name,
+        config.shm.operator_command.name,
         config.shm.control_state.name,
         config.shm.dashboard_state.name,
     }
-    if len(state_names) != 4:
+    if len(state_names) != 5:
         raise ConfigError("shm segment names must be unique")
     if config.can.command_timeout_s <= 0.0:
         raise ConfigError("can.command_timeout_s must be > 0")
@@ -244,16 +294,20 @@ def _validate_config(config: RobotControllerConfig) -> None:
         raise ConfigError("can.imu.startup_request_count must be >= 0")
     if config.can.imu.startup_request_delay_s < 0.0:
         raise ConfigError("can.imu.startup_request_delay_s must be >= 0")
-    if config.can.mit_limits.position_rad <= 0.0:
-        raise ConfigError("can.mit_limits.position_rad must be > 0")
-    if config.can.mit_limits.velocity_rad_s <= 0.0:
-        raise ConfigError("can.mit_limits.velocity_rad_s must be > 0")
-    if config.can.mit_limits.kp < 0.0:
-        raise ConfigError("can.mit_limits.kp must be >= 0")
-    if config.can.mit_limits.kd < 0.5:
-        raise ConfigError("can.mit_limits.kd must be >= 0.5 for shutdown damping")
-    if config.can.mit_limits.torque_ff_nm <= 0.0:
-        raise ConfigError("can.mit_limits.torque_ff_nm must be > 0")
+    if config.can.mit_protocol_range.position_rad <= 0.0:
+        raise ConfigError("can.mit_protocol_range.position_rad must be > 0")
+    if config.can.mit_protocol_range.velocity_rad_s <= 0.0:
+        raise ConfigError("can.mit_protocol_range.velocity_rad_s must be > 0")
+    if config.can.mit_protocol_range.kp < 0.0:
+        raise ConfigError("can.mit_protocol_range.kp must be >= 0")
+    if config.can.mit_protocol_range.kd < 0.5:
+        raise ConfigError("can.mit_protocol_range.kd must be >= 0.5 for shutdown damping")
+    if config.can.mit_protocol_range.torque_ff_nm <= 0.0:
+        raise ConfigError("can.mit_protocol_range.torque_ff_nm must be > 0")
+    if config.can.mit_protocol_range.feedback_position_rad <= 0.0:
+        raise ConfigError("can.mit_protocol_range.feedback_position_rad must be > 0")
+    if config.safety.velocity_damping_kd > config.can.mit_protocol_range.kd:
+        raise ConfigError("safety.velocity_damping_kd must be <= can.mit_protocol_range.kd")
     process_names = [process.name for process in config.processes]
     if len(set(process_names)) != len(process_names):
         raise ConfigError("processes must not contain duplicate names")
@@ -276,16 +330,19 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
     )
     platform = load_platform_config(platform_config_path)
 
+    runtime_raw = _require_mapping(raw, "runtime", "<root>")
+    hardware_raw = _require_mapping(raw, "hardware", "<root>")
+    safety_raw = _require_mapping(raw, "safety", "<root>")
     core_raw = _require_mapping(raw, "robot_controller", "<root>")
     shm_raw = _require_mapping(raw, "shm", "<root>")
     aux_command_raw = _require_mapping(shm_raw, "aux_command", "shm")
+    operator_command_raw = _require_mapping(shm_raw, "operator_command", "shm")
     control_state_raw = _require_mapping(shm_raw, "control_state", "shm")
     dashboard_state_raw = _require_mapping(shm_raw, "dashboard_state", "shm")
     can_raw = _require_mapping(raw, "can", "<root>")
     daemon_raw = _require_mapping(can_raw, "daemon", "can")
     motors_raw = _require_mapping(can_raw, "motors", "can")
     imu_raw = _require_mapping(can_raw, "imu", "can")
-    limits_raw = _require_mapping(can_raw, "mit_limits", "can")
     processes_config_path = resolve_config_path(
         config_path,
         str(_require_key(raw, "processes_config", "<root>")),
@@ -295,6 +352,25 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
 
     config = RobotControllerConfig(
         platform=platform,
+        runtime=RuntimeModeConfig(
+            mode=str(_require_key(runtime_raw, "mode", "runtime")),
+        ),
+        hardware=HardwareSafetyConfig(
+            allow_real_can=_require_bool(hardware_raw, "allow_real_can", "hardware"),
+            require_manual_arm=_require_bool(hardware_raw, "require_manual_arm", "hardware"),
+            require_estop=_require_bool(hardware_raw, "require_estop", "hardware"),
+            allow_enable_on_start=_require_bool(hardware_raw, "allow_enable_on_start", "hardware"),
+            allowed_can_interfaces=[
+                str(item)
+                for item in _require_list(hardware_raw, "allowed_can_interfaces", "hardware")
+            ],
+        ),
+        safety=SafetyPolicyConfig(
+            velocity_damping_kd=_require_float(safety_raw, "velocity_damping_kd", "safety"),
+            damping_timeout_s=_require_float(safety_raw, "damping_timeout_s", "safety"),
+            command_loss_action=str(_require_key(safety_raw, "command_loss_action", "safety")),
+            feedback_stale_action=str(_require_key(safety_raw, "feedback_stale_action", "safety")),
+        ),
         robot_controller=RobotControllerCoreConfig(
             name=str(_require_key(core_raw, "name", "robot_controller")),
             control_hz=_require_float(core_raw, "control_hz", "robot_controller"),
@@ -311,6 +387,10 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
                 name=platform.shm.aux_command,
                 size_bytes=_require_int(aux_command_raw, "size_bytes", "shm.aux_command"),
                 publish_hz=_require_float(aux_command_raw, "publish_hz", "shm.aux_command"),
+            ),
+            operator_command=OperatorCommandShmConfig(
+                name=platform.shm.operator_command,
+                size_bytes=_require_int(operator_command_raw, "size_bytes", "shm.operator_command"),
             ),
             control_state=RobotStateShmConfig(
                 name=platform.shm.control_state,
@@ -350,12 +430,13 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
                 startup_request_count=_require_int(imu_raw, "startup_request_count", "can.imu"),
                 startup_request_delay_s=_require_float(imu_raw, "startup_request_delay_s", "can.imu"),
             ),
-            mit_limits=MitLimitsConfig(
-                position_rad=_require_float(limits_raw, "position_rad", "can.mit_limits"),
-                velocity_rad_s=_require_float(limits_raw, "velocity_rad_s", "can.mit_limits"),
-                kp=_require_float(limits_raw, "kp", "can.mit_limits"),
-                kd=_require_float(limits_raw, "kd", "can.mit_limits"),
-                torque_ff_nm=_require_float(limits_raw, "torque_ff_nm", "can.mit_limits"),
+            mit_protocol_range=MitProtocolRangeConfig(
+                position_rad=float(platform.spg_mit.p_max_rad),
+                velocity_rad_s=float(platform.spg_mit.v_max_rad_s),
+                kp=float(platform.spg_mit.kp_max),
+                kd=float(platform.spg_mit.kd_max),
+                torque_ff_nm=float(platform.spg_mit.tau_max_nm),
+                feedback_position_rad=float(platform.spg_mit.feedback_position_max_rad),
             ),
         ),
         processes=processes,

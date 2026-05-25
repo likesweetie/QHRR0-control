@@ -83,8 +83,6 @@ struct VirtualCanConfig {
 
   std::string base_body_name = "base";
 
-  double command_timeout_s = 0.1;
-
   mjcan::SPGMITConfig spg_mit_config;
   mjcan::E2BoxImuFirmwareConfig e2box_imu_config;
   mjcan::MujocoCanBridge::DeviceConfig device_config;
@@ -203,14 +201,14 @@ YAML::Node load_yaml_file(const std::string& path) {
   }
 }
 
-// Loads the root app_config MuJoCo config. The config itself points to the
+// Loads the root config/app_config MuJoCo config. The config itself points to the
 // shared platform config for CAN IDs, actuator mappings, IMU IDs, and limits.
 std::string get_fixed_mujoco_can_config_path() {
   const char* env_path = std::getenv("MUJOCO_CAN_CONFIG");
   if (env_path != nullptr && env_path[0] != '\0') {
     return std::string(env_path);
   }
-  return "app_config/mujoco.yaml";
+  return "config/app_config/mujoco.yaml";
 }
 
 template <typename T>
@@ -283,15 +281,6 @@ mjcan::SPGMITConfig load_spg_mit_config(
       yaml_require<double>(
           platform_node,
           "iq_full_scale_current_a");
-
-  config.periodic_feedback =
-      yaml_require<bool>(
-          mujoco_node,
-          "periodic_feedback");
-  config.periodic_feedback_s =
-      yaml_require<double>(
-          mujoco_node,
-          "periodic_feedback_s");
 
   config.set_zero_hold_s =
       yaml_require<double>(
@@ -412,9 +401,6 @@ VirtualCanConfig load_virtual_can_config_from_fixed_path() {
   config.base_body_name =
       yaml_require<std::string>(can, "base_body_name");
 
-  config.command_timeout_s =
-      yaml_require<double>(can, "command_timeout_s");
-
   const YAML::Node socketcan = can["socketcan"];
   if (!socketcan) {
     throw std::runtime_error("Missing required YAML section: mujoco_can.socketcan");
@@ -448,16 +434,12 @@ VirtualCanConfig load_virtual_can_config_from_fixed_path() {
       "[main]   socketcan.enabled=%s\n"
       "[main]   socketcan.interface=%s\n"
       "[main]   base_body=%s\n"
-      "[main]   command_timeout_s=%.6f\n"
-      "[main]   spg_mit.periodic_feedback=%s\n"
       "[main]   actuators=%zu\n"
       "[main]   imus=%zu\n",
       config.enabled ? "true" : "false",
       config.socketcan_enabled ? "true" : "false",
       config.socketcan_interface.c_str(),
       config.base_body_name.c_str(),
-      config.command_timeout_s,
-      config.spg_mit_config.periodic_feedback ? "true" : "false",
       config.device_config.actuators.size(),
       config.device_config.imus.size());
 
@@ -483,11 +465,6 @@ void initialize_virtual_can(const VirtualCanConfig& config) {
         "[main] MuJoCo CAN base body: %s\n",
         config.base_body_name.c_str());
   }
-
-  g_can_bridge->set_command_timeout(config.command_timeout_s);
-  std::printf(
-      "[main] MuJoCo CAN command timeout: %.6f s\n",
-      config.command_timeout_s);
 
   if (!config.socketcan_enabled) {
     std::printf("[main] SocketCAN adapter disabled by config.\n");

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iostream>
+#include <iomanip>
 
 namespace mjcan {
 namespace {
@@ -51,7 +53,6 @@ void SPGFirmware::reset(double sim_time) {
   requested_zero_offset_rad_ = 0.0;
 
   ignore_control_until_time_ = sim_time;
-  last_periodic_feedback_time_ = -1.0;
 }
 
 void SPGFirmware::on_can_frame(
@@ -120,17 +121,6 @@ std::vector<CanFrame> SPGFirmware::make_feedback_frames(
     mit_status_response_pending_ = false;
   }
 
-  if (config_.periodic_feedback) {
-    const bool due =
-        last_periodic_feedback_time_ < 0.0 ||
-        sim_time - last_periodic_feedback_time_ >= config_.periodic_feedback_s;
-
-    if (due) {
-      frames.push_back(make_mit_status_frame(sample));
-      last_periodic_feedback_time_ = sim_time;
-    }
-  }
-
   return frames;
 }
 
@@ -158,14 +148,23 @@ void SPGFirmware::handle_mit_control(
   pending_command_.mode = ActuatorControlMode::kImpedance;
   pending_command_.position_rad =
       position_mit_to_physical_rad(decoded.p_des_rad);
-  pending_command_.velocity_rad_s = decoded.v_des_rad_s;
-  pending_command_.torque_nm = decoded.tau_ff_nm;
+  pending_command_.velocity_rad_s = 0;
+  pending_command_.torque_nm = 0;
   pending_command_.kp = decoded.kp;
   pending_command_.kd = decoded.kd;
   pending_command_.last_update_time = sim_time;
   pending_command_.valid = true;
   pending_command_.enabled = true;
 
+  // std::cout << std::fixed << std::setprecision(6);
+  // std::cout << "MIT control received" << std::endl;
+  // std::cout << "velocity_rad_s: " << decoded.v_des_rad_s << std::endl;
+  // std::cout << "torque_nm: " << decoded.tau_ff_nm<< std::endl;
+  // std::cout << "KP: " << decoded.kp << std::endl;
+  // std::cout << "KD: " << decoded.kd << std::endl;
+
+  // MIT control RX는 driver의 latched command를 교체합니다.
+  // bridge는 이 command를 timeout으로 지우지 않고 exit/reset 전까지 적용합니다.
   has_pending_command_ = true;
 
   // 0xC0은 status response를 반환합니다.
@@ -175,12 +174,9 @@ void SPGFirmware::handle_mit_control(
 void SPGFirmware::handle_enter_motor_mode(double sim_time) {
   enabled_ = true;
 
-  // 실제 문서에는 MIT 모드 최초 진입 시 현재 위치를 자동 오프셋 캡처하여
-  // 토크 스파이크를 방지한다는 내용이 있습니다.
-  // firmware class는 on_can_frame() 시점에 현재 position sample을 모르므로,
-  // 다음 make_feedback_frames(sample) 시점에 zero reference를 캡처합니다.
-  zero_capture_pending_ = true;
-  requested_zero_offset_rad_ = 0.0;
+  // MIT enter는 zero reference를 바꾸지 않습니다.
+  // 초기 feedback angle은 MuJoCo qpos에서 YAML sign/offset을 적용한 logical
+  // joint angle과 같아야 합니다. Zero reference 변경은 0xC3 Set Zero만 담당합니다.
 
   pending_command_ = ActuatorCommand{};
   pending_command_.mode = ActuatorControlMode::kZeroTorque;
@@ -193,6 +189,8 @@ void SPGFirmware::handle_enter_motor_mode(double sim_time) {
   pending_command_.valid = true;
   pending_command_.enabled = true;
 
+  // 최초 MIT enable 직후에는 실제 MIT control RX가 오기 전까지 zero torque를
+  // latched command로 유지합니다.
   has_pending_command_ = true;
 
   push_pending_tx(make_ack_frame(kCmdMITEnter));

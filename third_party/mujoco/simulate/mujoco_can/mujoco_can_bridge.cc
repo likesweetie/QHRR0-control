@@ -387,10 +387,6 @@ std::size_t MujocoCanBridge::device_frame_count() const {
   return bus_.device_frame_count();
 }
 
-void MujocoCanBridge::set_command_timeout(double command_timeout_s) {
-  command_timeout_s_ = command_timeout_s;
-}
-
 void MujocoCanBridge::set_base_body_name(const std::string& body_name) {
   base_body_name_ = body_name;
 }
@@ -721,8 +717,6 @@ void MujocoCanBridge::apply_commands_to_mujoco(
     return;
   }
 
-  const double sim_time = data->time;
-
   for (int i = 0; i < static_cast<int>(actuator_bindings_.size()); ++i) {
     const ActuatorBinding& binding = actuator_bindings_[i];
 
@@ -736,15 +730,10 @@ void MujocoCanBridge::apply_commands_to_mujoco(
       const ActuatorCommand& command =
           command_buffer_.actuator_commands[i];
 
-      const bool timeout_disabled = command_timeout_s_ <= 0.0;
-
-      const bool fresh =
-          command.valid &&
-          command.last_update_time >= 0.0 &&
-          (timeout_disabled ||
-           (sim_time - command.last_update_time) <= command_timeout_s_);
-
-      if (fresh && command.enabled) {
+      // The virtual SPG MIT firmware latches the last accepted command.
+      // Enter Motor Mode latches zero torque first; each MIT control RX frame
+      // replaces that latched command until Exit Motor Mode or reset.
+      if (command.valid && command.enabled) {
         const double q_logical =
             get_logical_position(binding, data);
 

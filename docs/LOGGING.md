@@ -1,10 +1,10 @@
 # Logging
 
-근거 파일: `robot_controller/utils/process_supervisor.py`, `robot_controller/process/*/main.py`, `robot_controller/runtime_io.py`, `legacy/mujoco-QHRR/app/shm_logger/main.cpp`.
+근거 파일: `robot_controller/processes/child_process_manager.py`, `robot_controller/utils/process_supervisor.py`, `robot_controller/process/*/main.py`, `robot_controller/hardware/motor_bus.py`, `legacy/mujoco-QHRR/app/shm_logger/main.cpp`.
 
 ## Log Directory 구조
 
-`ProcessSupervisor` 생성 시 현재 working directory 기준으로 다음 폴더를 만든다.
+`ChildProcessManager` 생성 시 현재 working directory 기준으로 다음 폴더를 만든다.
 
 ```text
 log/YYYYMMDD_HHMMSS/
@@ -34,17 +34,17 @@ log/YYYYMMDD_HHMMSS/
 
 | Component | Message | 의미 |
 | --- | --- | --- |
-| `RuntimeIO` | `Sending one damping command because ...` | reason별 damping fallback 전송 |
-| `RuntimeIO` | `Registered CAN RX callbacks: ...` | CAN callback 등록된 ID 목록 |
-| `RuntimeIO` | `CAN error during actuator shutdown: ...` | shutdown 중 CAN error |
+| `MotorBus` | `Sending MIT velocity damping-like command because ...` | damping-like MIT fallback 전송 |
+| `MotorBus` | `Sending motor disable commands because ...` | disable command 전송 |
+| `RobotHardware` | `Registered CAN RX callbacks: ...` | CAN callback 등록된 ID 목록 |
 | `CANProcessClient` | `CAN daemon RX socket failed` | RX Unix socket closed/error |
 | `CANSubprocessDaemon` | `Replacing existing CAN daemon IPC socket: ...` | stale/existing socket unlink |
-| `ProcessSupervisor` | `Killing process ... after stop timeout ...` | SIGTERM timeout 후 SIGKILL |
+| `ChildProcessManager` | `Killing process ... after stop timeout ...` | SIGTERM timeout 후 SIGKILL |
 | `task_controller` | `[task_controller] loop overrun: ...` | policy loop period 초과 |
 
 ## CSV Field Table
 
-현재 `ProcessSupervisor` process list에는 `shm_logger`가 없다. 다만 legacy C++ logger source에서 CSV 형식이 확인된다.
+현재 `ChildProcessManager` process list에는 `shm_logger`가 없다. 다만 legacy C++ logger source에서 CSV 형식이 확인된다.
 
 | CSV field | 의미 |
 | --- | --- |

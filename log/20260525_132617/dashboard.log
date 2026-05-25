@@ -1,0 +1,44 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260525_132617/dashboard.log
+/home/kale/QHRR_control/robot_controller/process/dashboard/backend/app.py:431: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+/home/kale/QHRR_control/robot_controller/process/dashboard/backend/app.py:440: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("shutdown")
+INFO:     Started server process [147452]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57070 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:57084 - "POST /api/imu/poll/hz HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/imu/poll/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/imu/poll/hz HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/imu/poll/stop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/tx/unlock HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/actuator/0x141/enter HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/actuator/0x142/enter HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "POST /api/actuator/0x143/enter HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/operator/fault-clear HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/actuator/0x141/exit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/actuator/0x142/exit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/actuator/0x143/exit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/actuator/0x141/enter HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/actuator/0x142/enter HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44490 - "POST /api/actuator/0x143/enter HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40868 - "POST /api/actuator/0x141/mit-poll/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40868 - "POST /api/actuator/0x142/mit-poll/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40868 - "POST /api/actuator/0x143/mit-poll/start HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [147452]

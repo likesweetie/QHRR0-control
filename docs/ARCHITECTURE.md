@@ -1,140 +1,154 @@
 # Architecture
 
-근거 파일: `robot_controller/main.py`, `robot_controller/robot_controller.py`, `robot_controller/runtime_io.py`, `robot_controller/utils/process_supervisor.py`, `robot_controller/process/*`, `app_config/*.yaml`.
+근거 파일: `robot_controller/main.py`, `robot_controller/robot_controller.py`, `robot_controller/control_loop.py`, `robot_controller/hardware/*`, `robot_controller/command/*`, `robot_controller/safety/*`, `robot_controller/state/*`, `robot_controller/processes/*`, `config/app_config/*.yaml`.
+
+## 핵심 구조
+
+이번 구조의 기준은 소프트웨어 인프라 이름이 아니라 실제 로봇 제어 흐름이다.
+
+```text
+read feedback
+-> read policy command
+-> validate command shape/range
+-> evaluate safety
+-> send policy / send damping-like MIT command / disable / no output
+-> publish state
+```
+
+이 흐름은 `RobotController.run_once()`와 `RobotControlLoop.run_once()`에서 바로 보인다.
 
 ## 디렉토리 구조
 
-| 경로 | 역할 |
+| Path | Role |
 | --- | --- |
-| `app_config/` | project-wide YAML config. `platform.yaml`, `robot_controller.yaml`, `processes.yaml`, `dashboard.yaml`, `mujoco.yaml` |
-| `robot_controller/core/` | config loader, state enum/dataclass, Robot State SHM JSON reader/writer |
-| `robot_controller/utils/` | process supervisor, CAN daemon client, SHM manager, MIT command SHM router |
-| `robot_controller/process/can_daemon/` | SocketCAN을 소유하는 CAN subprocess |
-| `robot_controller/process/task_controller/` | ONNX policy inference와 MIT command SHM writer |
-| `robot_controller/process/aux_reader/` | joystick input을 `aux_command` SHM에 publish |
-| `robot_controller/process/dashboard/` | FastAPI dashboard backend/frontend |
-| `robot_controller/QHRR0_HW/` | E2Box IMU, SPG actuator protocol 구현 |
-| `run_mujoco_simulation.py` | repository root에서 MuJoCo simulate build/launch |
-| `third_party/` | handoff 분석 대상 제외 |
+| `robot_controller/main.py` | CLI, config load, hardware/simulation safety gate |
+| `robot_controller/robot_controller.py` | startup/shutdown lifecycle, `run_once()` delegation |
+| `robot_controller/control_loop.py` | one tick의 `read -> decide -> act -> publish` workflow |
+| `robot_controller/hardware/` | `MotorBus`, `ImuBus`, `RobotHardware`, CAN transport |
+| `robot_controller/command/` | `ShmPolicyCommandSource`, `CommandValidator`, policy command dataclasses |
+| `robot_controller/safety/` | `SafetyController`, `SafetyState`, `ControlAction`, `SafetyDecision` |
+| `robot_controller/state/` | `StatePublisher`: control/dashboard SHM publish |
+| `robot_controller/processes/` | `ChildProcessManager`, `ProcessHealth` |
+| `robot_controller/process/` | child process entrypoints: CAN daemon, task controller, aux reader, dashboard |
+| `robot_controller/utils/` | low-level compatibility utilities: SHM manager/writer, CAN daemon client |
+| `config/app_config/` | shared YAML config |
 
-## 주요 모듈과 클래스
+## 주요 클래스
 
-| 파일 | 주요 식별자 | 책임 |
+| Class | File | Responsibility |
 | --- | --- | --- |
-| `robot_controller/main.py` | `main()` | config load, signal handler, `RobotController.start/run/shutdown` |
-| `robot_controller/robot_controller.py` | `RobotController` | SHM lifecycle, process lifecycle, 500 Hz tick workflow |
-| `robot_controller/runtime_io.py` | `RobotControllerRuntimeIO` | CAN daemon 연결, driver callback, IMU request, actuator command, state publish |
-| `robot_controller/utils/process_supervisor.py` | `ProcessSupervisor` | subprocess start/stop/status/log/pidfile |
-| `robot_controller/process/can_daemon/main.py` | `CANSubprocessDaemon` | HAL `SocketCANBus`/`CANDaemon` 소유, Unix socket IPC |
-| `robot_controller/process/task_controller/main.py` | `main()` | SHM read, policy inference, MIT target batch publish |
-| `robot_controller/core/robot_state_shm.py` | `RobotStateShmWriter`, `RobotStateShmReader` | JSON payload SHM seqlock-style publish/read |
-| `robot_controller/utils/shm_command_router.py` | `ShmMitCommandWriter`, `ShmMitCommandRouter` | binary MIT command SHM write/read |
+| `RobotController` | `robot_controller/robot_controller.py` | SHM/process/hardware lifecycle, top-level loop |
+| `RobotControlLoop` | `robot_controller/control_loop.py` | one control tick workflow |
+| `RobotHardware` | `robot_controller/hardware/robot_hardware.py` | `MotorBus` + `ImuBus` facade |
+| `MotorBus` | `robot_controller/hardware/motor_bus.py` | actuator driver callbacks, enable/disable, policy MIT batch, damping-like MIT command |
+| `ImuBus` | `robot_controller/hardware/imu_bus.py` | IMU request/feedback cache |
+| `CanTransport` | `robot_controller/hardware/can_transport.py` | CAN daemon client, TX, callback registration, TX echo rejection |
+| `ShmPolicyCommandSource` | `robot_controller/command/shm_policy_command_source.py` | MIT command SHM read, layout/sequence/status reporting |
+| `CommandValidator` | `robot_controller/command/command_validator.py` | NaN/Inf, limit, duplicate/missing/unknown CAN ID, actuator order validation |
+| `SafetyController` | `robot_controller/safety/safety_controller.py` | command/process/feedback/hardware safety decision |
+| `StatePublisher` | `robot_controller/state/state_publisher.py` | control/dashboard Robot State SHM publish |
+| `ChildProcessManager` | `robot_controller/processes/child_process_manager.py` | process start/stop/status and `ProcessHealth` |
 
 ## 전체 프로세스 구조
 
 ```mermaid
 flowchart TB
-    user[Operator terminal] --> rc[robot_controller.main]
-    rc --> ctrl[RobotController]
-    ctrl --> shm[ShmManager creates SHM]
-    ctrl --> sup[ProcessSupervisor]
-    sup --> canp[process/can_daemon]
-    sup --> aux[process/aux_reader]
-    sup --> task[process/task_controller]
-    sup --> dash[process/dashboard]
+    op[Operator terminal] --> main[robot_controller.main]
+    main --> gate[hardware/simulation safety gate]
+    gate --> rc[RobotController]
+    rc --> shm[ShmManager]
+    rc --> proc[ChildProcessManager]
+    rc --> loop[RobotControlLoop]
 
+    proc --> canp[process/can_daemon]
+    proc --> aux[process/aux_reader]
+    proc --> task[process/task_controller]
+    proc --> dash[process/dashboard]
+
+    loop --> hw[RobotHardware]
+    hw --> motors[MotorBus]
+    hw --> imu[ImuBus]
+    hw --> cantransport[CanTransport]
+    cantransport <--> canp
     canp --> hal[HAL SocketCANBus + CANDaemon]
-    hal --> canif[(SocketCAN interface)]
+    hal --> canif[(SocketCAN)]
 
-    ctrl --> cancli[CANProcessClient TX/RX]
-    cancli <--> canp
-    task --> mitshm[(qhrr_mit_command)]
-    aux --> auxshm[(qhrr_aux_command)]
-    ctrl --> controlshm[(qhrr_control_state)]
-    ctrl --> dashshm[(qhrr_dashboard_state)]
-    dash --> controlshm
-    dash --> dashshm
+    loop --> source[ShmPolicyCommandSource]
+    loop --> validator[CommandValidator]
+    loop --> safety[SafetyController]
+    loop --> publisher[StatePublisher]
 ```
 
 ## 데이터 흐름
 
 ```mermaid
 flowchart LR
-    canbus[(CAN bus)] --> candaemon[CAN daemon]
-    candaemon --> runtime[RobotControllerRuntimeIO callbacks]
-    runtime --> drivers[IMUDriver / ActuatorDriver]
-    drivers --> control[(qhrr_control_state 500 Hz)]
-    drivers --> dashstate[(qhrr_dashboard_state 10 Hz)]
+    can[(CAN bus)] --> daemon[CAN daemon]
+    daemon --> transport[CanTransport RX callbacks]
+    transport --> motorbus[MotorBus feedback cache]
+    transport --> imubus[ImuBus feedback cache]
+    motorbus --> feedback[RobotFeedback]
+    imubus --> feedback
 
-    joystick[/dev/input/js0] --> aux[aux_reader]
+    auxdev[/dev/input/js0] --> aux[aux_reader]
     aux --> auxshm[(qhrr_aux_command)]
-
-    control --> task[task_controller]
+    feedback --> controlshm[(qhrr_control_state)]
+    feedback --> dashshm[(qhrr_dashboard_state)]
+    controlshm --> task[task_controller]
     auxshm --> task
-    task --> policy[ONNX policy]
-    policy --> mit[(qhrr_mit_command)]
-    mit --> controller[RobotController tick]
-    controller --> runtime
-    runtime --> candaemon
-    candaemon --> canbus
-
-    dash[dashboard] --> control
-    dash --> dashstate
-    dash --> candaemon
+    task --> mitshm[(qhrr_mit_command)]
+    mitshm --> source[ShmPolicyCommandSource]
+    source --> validator[CommandValidator]
+    validator --> safety[SafetyController]
+    feedback --> safety
+    proc[ProcessHealth] --> safety
+    safety --> action{ControlAction}
+    action -->|SEND_POLICY_COMMAND| motorbus
+    action -->|SEND_DAMPING| motorbus
+    action -->|DISABLE_MOTORS| motorbus
+    motorbus --> daemon
 ```
 
-## 프로세스/스레드 구조
+## Safety Decision Flow
 
-| Runtime | 코드상 구조 |
+```mermaid
+flowchart TD
+    tick[run_once] --> fb[RobotHardware.read_feedback]
+    tick --> cmd[ShmPolicyCommandSource.read_latest]
+    cmd --> val[CommandValidator.validate]
+    fb --> sin[SafetyInputs]
+    val --> sin
+    health[ChildProcessManager.health] --> sin
+    hwstatus[RobotHardware.status] --> sin
+    sin --> sc[SafetyController.evaluate]
+    sc --> dec[SafetyDecision]
+    dec --> act[ControlAction]
+```
+
+## Process Health Flow
+
+`ChildProcessManager.health()`는 제어 루프에 다음 정보를 제공한다.
+
+| Field | Safety behavior |
 | --- | --- |
-| `robot_controller.main` | foreground process. signal handler가 `controller.request_stop()` 호출 |
-| `can_daemon` | `ProcessSupervisor`가 별도 터미널로 실행. CAN server accept loop + client handler threads + HAL daemon internal threads |
-| `task_controller` | 별도 프로세스. 50 Hz 기본 loop에서 policy inference |
-| `aux_reader` | 별도 프로세스. joystick device nonblocking read |
-| `dashboard` | 별도 프로세스. FastAPI/Uvicorn + asyncio loops: SocketCAN monitor, IMU poll, MIT poll |
-| `CANProcessClient` | RX enabled이면 `CAN_DAEMON_CLIENT_RX` daemon thread 생성 |
+| `can_daemon_alive` | false이면 `FAULT_LATCHED` + `DISABLE_MOTORS` |
+| `task_controller_alive` | false이면 command loss path: `DAMPING` |
+| `aux_reader_alive` | hardware mode에서는 false이면 `FAULT_LATCHED` |
+| `dashboard_alive` | control에는 영향 없음. dashboard death는 warning/observability 대상 |
 
-## `ProcessSupervisor` 책임
+## Simulation Mode vs Hardware Mode
 
-| 책임 | 확인된 동작 |
+| Mode | Gate |
 | --- | --- |
-| 시작 순서 | `processes.yaml start_order` 오름차순 |
-| 종료 순서 | `processes.yaml stop_order` 오름차순 |
-| terminal launch | `new_terminal: true`이면 `gnome-terminal --wait -- bash -lc ...` |
-| log | `log/YYYYMMDD_HHMMSS/<process>.log`에 stdout/stderr tee |
-| pidfile | `/tmp/qhrr_robot_controller_processes/<name>.pid` |
-| timeout | stop timeout 이후 SIGKILL, warning log |
+| `simulation` | real CAN interface `can0`, `can1` reject. `can.motors.enter_on_start` reject. |
+| `hardware` | `--hardware`, `--i-understand-this-can-enable-motors`, `--estop-ok`, `hardware.allow_real_can: true`, non-vcan interface, allowed interface list, manual arm required, enable-on-start forbidden. |
 
-## CAN daemon 책임
-
-| 책임 | 확인된 동작 |
-| --- | --- |
-| SocketCAN 소유 | `SocketCANBus(config.can.interface)` |
-| HAL daemon 소유 | `CANDaemon(rx_timeout, tx_timeout, join_timeout, max_tx_queue_size)` |
-| TX IPC | Unix socket JSON line `{"type":"tx","can_id":...,"data":"..."}` |
-| RX broadcast | wildcard callback으로 RX subscribers에 JSON line publish |
-| own TX echo | raw socket `CAN_RAW_RECV_OWN_MSGS`를 0으로 설정 |
-| socket cleanup | shutdown 시 Unix socket unlink |
-
-## SafetyManager
-
-`SafetyManager` 클래스 또는 명시적 safety manager process는 코드에서 확인되지 않았다. 안전 관련 처리는 `RobotControllerRuntimeIO.validate_mit_batch()`, `send_damping_once()`, process shutdown path, config validation에 흩어져 있다.
-
-## Simulation Mode와 Hardware Mode
-
-| 항목 | Simulation | Hardware |
-| --- | --- | --- |
-| mode flag | `app_config/mujoco.yaml mujoco_can.enabled`는 MuJoCo 쪽 config | UNKNOWN: `robot_controller`에 별도 hardware/simulation flag 없음 |
-| CAN interface | `app_config/platform.yaml can.interface: vcan0` | 같은 key를 실제 interface로 바꾸는 구조로 보임 |
-| simulator 실행 | `python3 run_mujoco_simulation.py` | 해당 없음 |
-| controller 실행 | 동일하게 `python3 -m robot_controller.main --config app_config/robot_controller.yaml` | 동일 entrypoint |
-| 위험 | simulator가 없으면 feedback이 없고 timeout/stale 상태가 발생 | 실제 actuator에 `enter_on_start` frame이 나갈 수 있음 |
+Hardware mode는 `SafetyState.DISARMED`에서 시작한다. Dashboard `Arm`, `Fault Clear`, `E-STOP`은 `qhrr_operator_command` SHM을 통해 controller main loop로 전달된다. Startup 중 motor enable command는 보내지 않는다.
 
 ## 검증 필요 항목
 
 | 항목 | 질문 |
 | --- | --- |
-| Process death reaction | TODO(owner): `task_controller` 등 child process 사망 시 supervisor가 재시작하지 않는 것이 의도인지 확인 |
-| terminal dependency | TODO(owner): `gnome-terminal`이 없는 환경에서 process manager 운용 방법 |
-| hardware mode | TODO(owner): 실제 CAN interface 전환 절차와 별도 safety gate 필요 여부 |
-| SafetyManager | TODO(owner): 별도 `SafetyManager`를 도입할지, 현재 분산 검증을 유지할지 결정 |
+| Operator arming | TODO(owner): dashboard operator command path를 실제 hardware arming 절차와 함께 검증 |
+| Process restart | TODO(owner): child process 사망 시 재시작할지 fault latch만 할지 운영 정책 |
+| E-stop source | TODO(owner): `--estop-ok`를 실제 E-stop monitor로 대체 |

@@ -212,11 +212,24 @@ class DashboardRobotStateReader:
         controller_state = None
         if isinstance(payload, dict):
             controller_state = payload.get("controller_state")
+            safety_state = payload.get("safety_state")
+            control_action = payload.get("control_action")
+            safety_reason = payload.get("safety_reason")
+            fault_code = payload.get("fault_code")
+        else:
+            safety_state = None
+            control_action = None
+            safety_reason = None
+            fault_code = None
         return {
             "source": "control_shm",
             "shm_name": shm["shm_name"],
             "status": shm["status"],
             "controller_state": controller_state,
+            "safety_state": safety_state,
+            "control_action": control_action,
+            "safety_reason": safety_reason,
+            "fault_code": fault_code,
             "age_s": shm["age_s"],
             "error": shm["error"],
         }

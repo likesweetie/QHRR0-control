@@ -1,166 +1,142 @@
 # Control Loop
 
-근거 파일: `robot_controller/robot_controller.py`, `robot_controller/runtime_io.py`, `robot_controller/process/task_controller/main.py`, `robot_controller/process/task_controller/policy.py`, `robot_controller/process/task_controller/shm_io.py`, `app_config/robot_controller.yaml`, `app_config/platform.yaml`.
+근거 파일: `robot_controller/control_loop.py`, `robot_controller/robot_controller.py`, `robot_controller/safety/safety_controller.py`, `robot_controller/command/command_validator.py`, `robot_controller/process/task_controller/main.py`.
 
-## 주기
+## Top-level 흐름
 
-| Loop | 위치 | 기본 값 | Config/source |
-| --- | --- | --- | --- |
-| Main controller tick | `RobotController.run()` | 500 Hz | `robot_controller.control_hz` |
-| Control state publish | `RuntimeIO.publish_due_states()` | 500 Hz | `shm.control_state.publish_hz` |
-| Dashboard state publish | `RuntimeIO.publish_due_states()` | 10 Hz | `shm.dashboard_state.publish_hz` |
-| Task policy inference | `task_controller.main` | 50 Hz | `--control-hz`, env `TASK_CONTROL_HZ`, code default `50.0` |
-| Dashboard websocket | dashboard backend | 24 Hz | `dashboard.state_hz` |
-| Dashboard IMU poll UI loop | dashboard backend | 400 Hz | `imu.default_poll_hz`; robot controller도 tick마다 IMU request |
+`RobotController.run_once()`는 `RobotControlLoop.run_once()`로 위임한다. 한 tick은 다음 순서로 고정되어 있다.
 
-## Timing Diagram
+```text
+IMU request on tick
+-> read RobotFeedback
+-> read latest policy command from SHM
+-> validate command
+-> read ProcessHealth and HardwareStatus
+-> SafetyController.evaluate()
+-> act on ControlAction
+-> StatePublisher.publish()
+```
 
 ```mermaid
 sequenceDiagram
-    participant CAN as CAN bus
-    participant RC as RobotController 500Hz
-    participant SHM as SHM
-    participant TC as task_controller 50Hz
-    participant AUX as aux_reader
+    participant Loop as RobotControlLoop.run_once
+    participant HW as RobotHardware
+    participant SRC as ShmPolicyCommandSource
+    participant VAL as CommandValidator
+    participant SAFE as SafetyController
+    participant PUB as StatePublisher
 
-    loop every controller tick
-        RC->>CAN: E2Box GET_ALL if request_all_each_tick
-        CAN-->>RC: IMU/actuator feedback via CAN daemon callbacks
-        RC->>SHM: publish qhrr_control_state when due
-        RC->>SHM: publish qhrr_dashboard_state when due
-        RC->>SHM: read qhrr_mit_command
-        alt fresh valid MIT batch
-            RC->>CAN: MIT command per CAN ID
-        else missing or stale batch
-            RC->>CAN: one damping command per reason
-        end
+    Loop->>HW: imu.request_on_tick(now)
+    Loop->>HW: read_feedback()
+    Loop->>SRC: read_latest()
+    Loop->>VAL: validate(command)
+    Loop->>SAFE: evaluate(SafetyInputs)
+    alt SEND_POLICY_COMMAND
+        Loop->>HW: motors.send_policy_mit_batch()
+    else SEND_DAMPING
+        Loop->>HW: motors.send_velocity_damping()
+    else DISABLE_MOTORS
+        Loop->>HW: motors.disable_all()
+    else NO_OUTPUT
+        Loop->>Loop: no motor output
     end
-
-    loop task_controller period
-        TC->>SHM: read qhrr_control_state
-        AUX->>SHM: publish qhrr_aux_command on joystick events
-        TC->>SHM: read qhrr_aux_command
-        TC->>TC: ONNX policy inference
-        TC->>SHM: publish complete MIT target batch
-    end
+    Loop->>PUB: publish(feedback, command, safety_state, decision)
 ```
 
-## Main Loop Workflow
+## 주기
 
-`RobotController.run()`의 tick 순서:
+| Loop/Data | Default | Source |
+| --- | --- | --- |
+| Main controller tick | 500 Hz | `robot_controller.control_hz` |
+| Policy inference process | 50 Hz | `config/app_config/processes.yaml` env `TASK_CONTROL_HZ`, or explicit `task_controller --control-hz` |
+| Policy output rate log | 1 s interval | `config/app_config/processes.yaml` env `TASK_RATE_LOG_INTERVAL_S`; logs successful `qhrr_mit_command` publishes |
+| `qhrr_control_state` publish | 500 Hz | `shm.control_state.publish_hz` |
+| `qhrr_dashboard_state` publish | 10 Hz | `shm.dashboard_state.publish_hz` |
+| Dashboard websocket | 24 Hz | `dashboard.state_hz` |
+| IMU request | every controller tick | `can.imu.request_all_each_tick: true` |
 
-1. `request_imu_on_tick()`
-2. `command_router.read_latest_batch()`
-3. batch 없음: `send_damping_once("no MIT command batch available")`
-4. batch stale: `send_damping_once("MIT command batch is stale: source=...")`
-5. batch fresh: `validate_mit_batch()`, `mark_mit_command_active()`, `send_mit_batch()`
-6. `publish_due_states()`
-7. tick timing update
+## Command 처리
 
-## Policy Observation 생성 순서
+`task_controller`는 `qhrr_control_state`와 `qhrr_aux_command`를 읽고, ONNX policy output을 MIT target batch로 `qhrr_mit_command`에 쓴다.
 
-`task_controller`의 순서:
+`ShmPolicyCommandSource`는 다음만 담당한다.
 
-1. `ControlStateReader.latest()`로 `qhrr_control_state` JSON payload read
-2. `AuxCommandReader.latest()`로 `qhrr_aux_command` JSON payload read
-3. `state_vectors(control_state, can_ids)`:
-   - actuator position/velocity는 `can_ids` 순서대로 추출
-   - IMU `quat_xyzw`를 policy용 `quat_wxyz`로 변환
-   - IMU `angular_velocity_rad_s`를 `gyro`로 사용
-4. `OnnxPolicy.set_state(dof_pos, dof_vel, quat_wxyz, gyro)`
-5. joystick command:
-   - `lin_vel_target[0]`
-   - `lin_vel_target[1]`
-   - `ang_vel_target[2]`
-   - `buttons["a_button"]`가 `mode`
+| Responsibility | Behavior |
+| --- | --- |
+| SHM attach/read | `qhrr_mit_command` read |
+| layout guard | magic/version/size/target_count 검사 |
+| sequence guard | odd/even seq collision 감지 |
+| read result | `CommandReadResult(status, reason, timestamp, command)` 반환 |
+
+`CommandValidator`는 다음을 reject한다.
+
+| Reject condition |
+| --- |
+| NaN/Inf |
+| CAN ID order mismatch |
+| duplicate CAN ID |
+| unknown CAN ID |
+| missing actuator command |
+| position/velocity/kp/kd/torque limit 초과 |
+
+Invalid command는 clip하지 않는다. `SafetyController`가 invalid command reason을 받아 `FAULT_LATCHED` + `DISABLE_MOTORS`로 판단한다.
+
+## Stale/Missing Command
+
+| Condition | Safety state/action |
+| --- | --- |
+| no command | `DAMPING` + `SEND_DAMPING` |
+| read collision | `DAMPING` + `SEND_DAMPING` |
+| stale timestamp | `DAMPING` + `SEND_DAMPING` |
+| invalid command | `FAULT_LATCHED` + `DISABLE_MOTORS` |
+
+Command loss로 `DAMPING`에 들어갔고 actuator feedback에서 `is_enabled: true`가 확인되면, controller는 매 tick damping-like MIT command를 보낸다. enabled actuator가 확인되지 않으면 command loss만으로 motor output을 보내지 않는다. Fresh valid command와 fresh feedback이 둘 다 확인되면 `RUNNING`으로 복귀한다. `safety.damping_timeout_s` 안에 회복하지 못하면 `FAULT_LATCHED`로 전환하지만, CAN daemon과 MIT-enabled actuator feedback이 살아 있으면 motor disable 대신 damping-like MIT command를 계속 보낸다.
+
+Dashboard E-STOP은 `ESTOP` state가 아니라 operator-latched `DAMPING`으로 들어간다. 이 latch가 active인 동안 fresh policy command가 있어도 `RUNNING`으로 자동 복귀하지 않고, operator `arm` command가 들어와야 policy command를 다시 보낼 수 있다.
+
+## Damping-like MIT Command
+
+`MotorBus.send_velocity_damping()`은 다음 MIT command를 모든 configured CAN ID에 보낸다.
+
+```text
+q = 0
+qd = 0
+kp = 0
+kd = safety.velocity_damping_kd
+tau = 0
+```
+
+이 command는 코드에서 `safe_damping`이라고 부르지 않는다. 실제 firmware에서 hardware-safe damping으로 동작한다는 보장은 이 코드에서 확인되지 않았다.
+
+## Policy Observation
+
+`task_controller`의 observation 생성 순서:
+
+1. `ControlStateReader.latest()`로 `qhrr_control_state` read
+2. `AuxCommandReader.latest()`로 `qhrr_aux_command` read
+3. actuator position/velocity를 configured CAN ID 순서로 추출
+4. IMU `quat_xyzw`를 policy용 `quat_wxyz`로 변환
+5. joystick command를 `lin_x`, `lin_y`, `yaw`, `mode`로 전달
 6. `OnnxPolicy.compute_action()`
-7. `q_target = scaled_action + action_offset(...)`
-8. `MitTarget` batch publish
+7. `q_target = policy action + action_offset(...)`
+8. `ShmMitCommandWriter.publish()`로 complete MIT batch 작성
 
-`OnnxPolicy._observation()`의 component 순서는 `obs_config.yaml observations.components`가 있으면 그것을 따른다. 없으면 code default:
+## Joint/CAN Order
 
-| 순서 | component |
-| --- | --- |
-| 1 | `base_ang_vel_` |
-| 2 | `projected_gravity` |
-| 3 | `lin_vel_x_commands_` |
-| 4 | `lin_vel_y_commands_` |
-| 5 | `ang_vel_z_commands_` |
-| 6 | `delta_dof_pos` |
-| 7 | `dof_vel` |
-| 8 | `actions` |
+현재 enabled actuator order:
 
-## Action 해석 방식
-
-| 단계 | 내용 |
-| --- | --- |
-| ONNX output | `session.run()` output을 1D로 펼치고 `num_joint`까지만 사용 |
-| clipping | `np.clip(raw, -action_clip, action_clip)` |
-| scaling | `actions * action_scale` |
-| output index mapping | `joint_idx_conversion_<style>.output` |
-| offset | `qhrr`, `qhrr1`은 `default_joint_angle` |
-| target | `position_rad=q_target[index]`, `velocity_rad_s=0`, `kp=pd_config["kp"]`, `kd=pd_config["kd"]`, `torque_ff_nm=0` |
-
-## PD 제어식
-
-Python controller는 PD torque를 직접 계산하지 않는다. `task_controller`는 MIT impedance command field인 `q`, `qd`, `kp`, `kd`, `tau_ff`를 생성하고, `SPGActuatorProtocol`이 payload packing을 수행한다.
-
-UNKNOWN: actuator firmware 내부에서 사용하는 정확한 torque equation.
-
-## Joint Order
-
-현재 `app_config/platform.yaml` enabled actuator 순서:
-
-| index | name | CAN ID |
+| Index | Name | CAN ID |
 | --- | --- | --- |
 | 0 | `RL_hip_roll` | `0x141` |
 | 1 | `RL_hip_pitch` | `0x142` |
 | 2 | `RL_knee_pitch` | `0x143` |
 
-`task_controller`는 `controller_config.can.motors.can_ids` 순서대로 `dof_pos`, `dof_vel`, `MitTarget`을 구성한다. ONNX policy 내부 input/output remapping은 `runner_config.yaml joint_idx_style`과 `joint_idx_conversion_<style>`를 따른다.
-
-## 단위와 좌표계
-
-| 값 | 단위/형식 | 근거 |
-| --- | --- | --- |
-| actuator position | rad | `position_rad` |
-| actuator velocity | rad/s | `velocity_rad_s` |
-| torque feed-forward | Nm | `torque_ff_nm` |
-| IMU quaternion in Robot State | `xyzw` | `quat_xyzw` |
-| policy quaternion | `wxyz` | `state_vectors()` 변환 |
-| E2Box CAN quaternion payload | raw order `qz_raw, qy_raw, qx_raw, qw_raw` | `E2BoxIMUProtocol._decode_quat()` |
-| gyro | rad/s | raw deg/s scale 후 rad 변환 |
-| projected gravity | body frame tuple | `projected_gravity_b` |
-
-## Saturation / Limit
-
-| 경계 | 제한 |
-| --- | --- |
-| Policy action | `action_clip`, `action_scale` from `runner_config.yaml` |
-| Runtime MIT validation | `can.mit_limits.position_rad`, `velocity_rad_s`, `kp`, `kd`, `torque_ff_nm` |
-| SPG packing | `SPGMITConfig` p/v/kp/kd/tau max |
-| Config validation | `kd >= 0.5` because shutdown damping uses kd=0.5 |
-
-## Torque/Position/Velocity Command 흐름
-
-```mermaid
-flowchart LR
-    ONNX[ONNX raw action] --> Clip[action_clip]
-    Clip --> Scale[action_scale]
-    Scale --> Map[output index mapping]
-    Map --> Offset[action_offset]
-    Offset --> MIT[MitTarget q target]
-    MIT --> SHM[(qhrr_mit_command)]
-    SHM --> Validate[Runtime validation]
-    Validate --> Pack[SPG MIT payload]
-    Pack --> CAN[CAN daemon TX]
-```
+`CommandValidator`는 incoming command target CAN ID order가 `config.can.motors.can_ids`와 정확히 일치해야 통과시킨다.
 
 ## 검증 필요 항목
 
 | 항목 | 질문 |
 | --- | --- |
-| policy frequency | TODO(owner): 50 Hz task policy와 500 Hz controller tick의 의도된 decimation 비율 |
-| PD equation | TODO(owner): firmware MIT equation과 sign convention 확인 |
-| joint mapping | TODO(owner): policy runner config의 input/output index와 platform actuator 순서 검증 |
-| IMU frame | TODO(owner): E2Box convention correction이 실제 robot body frame과 일치하는지 검증 |
+| Damping firmware behavior | TODO(owner): q=0, qd=0, kp=0, kd=0.5, tau=0의 실제 actuator firmware 동작 |
+| Damping recovery | TODO(owner): 자동 복귀 외에 operator가 damping hold를 강제로 유지/해제하는 입력 경로 |
+| Policy rate | TODO(owner): 50 Hz policy와 500 Hz CAN tick의 의도된 decimation |

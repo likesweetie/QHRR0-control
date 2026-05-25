@@ -16,7 +16,7 @@ from ..core.config import ProcessConfig
 logger = logging.getLogger(__name__)
 
 
-class ProcessSupervisor:
+class _ProcessSupervisorBase:
     def __init__(self, process_configs: list[ProcessConfig]):
         self.process_configs = {
             config.name: config
@@ -182,7 +182,7 @@ class ProcessSupervisor:
     @staticmethod
     def _wait_pid_exit(pid: int, deadline: float) -> None:
         while time.monotonic() < deadline:
-            if not ProcessSupervisor._pid_is_running(pid):
+            if not _ProcessSupervisorBase._pid_is_running(pid):
                 return
             time.sleep(0.02)
 

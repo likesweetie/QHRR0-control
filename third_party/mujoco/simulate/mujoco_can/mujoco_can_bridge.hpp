@@ -92,10 +92,6 @@ public:
   std::size_t host_frame_count() const;
   std::size_t device_frame_count() const;
 
-  // command_timeout_s <= 0이면 timeout을 비활성화합니다.
-  // 안전 관점에서는 0.05~0.2 s 정도를 권장합니다.
-  void set_command_timeout(double command_timeout_s);
-
   // model마다 base body 이름이 다를 수 있습니다.
   // 예: "base", "trunk", "torso", "pelvis"
   void set_base_body_name(const std::string& body_name);
@@ -325,8 +321,6 @@ private:
   std::string base_body_name_;
   int base_body_id_ = -1;
   int base_free_joint_dof_adr_ = -1;
-
-  double command_timeout_s_ = 0.1;
 
   SPGMITConfig spg_mit_config_;
   E2BoxImuFirmwareConfig e2box_imu_config_;

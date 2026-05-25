@@ -9,6 +9,8 @@ observations:
     "delta_dof_pos",
     "dof_vel",
     "last_actions",
+    "last_last_actions",
+    "last_last_last_actions"
     ]
 
   scales:

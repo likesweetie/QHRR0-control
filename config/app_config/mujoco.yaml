@@ -1,0 +1,11 @@
+platform_config: platform.yaml
+
+mujoco_can:
+  enabled: true
+  base_body_name: base_link
+
+  socketcan:
+    enabled: true
+
+  spg_mit:
+    set_zero_hold_s: 0.020
