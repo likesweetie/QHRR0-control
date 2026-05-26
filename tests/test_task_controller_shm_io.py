@@ -4,7 +4,7 @@ import contextlib
 import io
 import unittest
 
-from robot_controller.process.task_controller.shm_io import (
+from robot_controller.subprocesses.task_controller.shm_io import (
     ControlStateNotReady,
     ControlStateReader,
     control_state_numeric_error,

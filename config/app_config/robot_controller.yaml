@@ -10,6 +10,7 @@ hardware:
   require_estop: true
   allow_enable_on_start: false
   allowed_can_interfaces:
+    - vcan0
     - can0
 
 safety:

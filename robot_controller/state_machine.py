@@ -51,7 +51,9 @@ class ControllerStateMachine:
         if code == OperatorCommandCode.ENABLE:
             if self.mode in (ControllerMode.DISABLED, ControllerMode.DAMPING, ControllerMode.ZERO_SETTING):
                 self.enter(ControllerMode.ENABLING, now)
-            return self.mode
+                return self.mode
+            if self.mode != ControllerMode.ENABLING:
+                return self.mode
         if code == OperatorCommandCode.DAMPING:
             self.enter(ControllerMode.DAMPING, now)
             return self.mode

@@ -22,7 +22,7 @@ from robot_controller.telemetry import (
     RobotSnapshot,
     ShmStatePublisher,
 )
-from robot_controller.utils.shm_manager import ShmManager
+from robot_controller.shm.manager import ShmManager
 
 
 logger = logging.getLogger(__name__)

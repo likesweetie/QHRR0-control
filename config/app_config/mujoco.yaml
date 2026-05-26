@@ -2,7 +2,7 @@ platform_config: platform.yaml
 
 mujoco_can:
   enabled: true
-  base_body_name: base_link
+  base_body_name: IMU
 
   socketcan:
     enabled: true

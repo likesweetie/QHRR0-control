@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-import robot_controller.process.can_daemon.main as can_daemon_main
+import robot_controller.subprocesses.can_daemon.main as can_daemon_main
 
 
 class CanDaemonGateTest(unittest.TestCase):

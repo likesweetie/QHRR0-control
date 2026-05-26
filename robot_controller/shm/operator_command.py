@@ -96,3 +96,35 @@ class OperatorCommandShm:
         self.write(command)
         return int(command.timestamp_ns)
 
+
+class OperatorCommandShmWriter:
+    def __init__(self, name: str, size_bytes: int | None = None, *, source: str = "") -> None:
+        del size_bytes, source
+        self.writer = OperatorCommandShm.open_writer(name)
+
+    def close(self) -> None:
+        self.writer.close()
+
+    def publish(
+        self,
+        *,
+        arm: bool = False,
+        clear_fault: bool = False,
+        estop: bool = False,
+        damping: bool = False,
+        zero_set: bool = False,
+        disable: bool = False,
+    ) -> int:
+        if arm:
+            return self.writer.publish(OperatorCommandCode.ENABLE)
+        if clear_fault:
+            return self.writer.publish(OperatorCommandCode.RESET_FAULT)
+        if estop:
+            return self.writer.publish(OperatorCommandCode.ESTOP)
+        if damping:
+            return self.writer.publish(OperatorCommandCode.DAMPING)
+        if zero_set:
+            return self.writer.publish(OperatorCommandCode.ZERO_SET)
+        if disable:
+            return self.writer.publish(OperatorCommandCode.DISABLE)
+        return self.writer.publish(OperatorCommandCode.NONE)

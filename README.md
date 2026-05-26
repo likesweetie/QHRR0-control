@@ -52,19 +52,21 @@ Hardware mode startup validation:
 | `hardware.allow_enable_on_start` | hardware mode에서 `false`여야 함 |
 | `can.motors.enter_on_start` | hardware mode에서 금지 |
 
-현재 코드에는 operator manual arm 입력 경로가 아직 연결되어 있지 않습니다. Hardware mode는 `SafetyState.DISARMED`에서 시작하며, startup 중 motor enable command를 보내지 않습니다.
+Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor enable command를 보내지 않습니다. Arm/enable은 dashboard 또는 다른 operator process가 `OperatorCommandShm`에 `ENABLE` command를 쓴 뒤 `RobotController` 상태 머신이 처리합니다.
 
 ## Project Layout
 
 | Path | Description |
 | --- | --- |
 | `config/app_config/` | project-wide YAML config |
-| `robot_controller/hardware/` | `MotorBus`, `ImuBus`, `RobotHardware`, CAN transport |
-| `robot_controller/command/` | policy command source와 command validator |
-| `robot_controller/safety/` | `SafetyController`, `SafetyState`, `ControlAction` |
-| `robot_controller/state/` | Robot State SHM publisher |
-| `robot_controller/processes/` | child process health/management |
-| `robot_controller/process/` | child process entrypoints |
+| `hal/` | product-independent CAN frame, daemon, dispatcher, process transport, base device driver/protocol abstractions |
+| `qhrr0_hw/` | QHRR0-specific SPG/DongilC actuator protocol, E2BOX IMU protocol, CAN ID map, joint map, calibration, robot spec |
+| `robot_controller/controller.py` | `RobotController` main runtime, state-machine update, direct HAL actuator command dispatch |
+| `robot_controller/state_machine.py` | `ControllerMode` and `OperatorCommandCode` transition policy |
+| `robot_controller/shm/` | ctypes C-compatible `ControlCommandShm`, `OperatorCommandShm`, `RobotStateShm` |
+| `robot_controller/telemetry/` | `RobotSnapshot`, `ShmStatePublisher`, `DashboardPublisher` |
+| `robot_controller/supervisor/` | child process lifecycle management |
+| `robot_controller/subprocesses/` | child process entrypoints: CAN daemon, task controller, dashboard, aux reader |
 | `docs/` | handoff, architecture, safety, runbook 문서 |
 | `config/` | policy/controller 관련 설정 |
 | `policy/` | ONNX policy artifacts |
@@ -86,20 +88,27 @@ Hardware mode startup validation:
 
 ## Safety Notes
 
-- `RobotController.run_once()`는 `read feedback -> read command -> evaluate safety -> act -> publish` 흐름을 드러냅니다.
-- Safety decision은 `SafetyController`에서 수행합니다.
+- `RobotController.tick()`는 operator command를 읽고 상태 머신을 업데이트한 뒤, 현재 `ControllerMode`별로 정확히 하나의 actuator output path만 실행합니다.
+- `ENABLING` 상태에서는 enable command만 송신하며, policy/damping/zero/disable command를 섞지 않습니다.
+- `NORMAL` 상태에서만 `ControlCommandShm.read_relaxed()`를 호출하고 policy MIT command를 송신합니다.
+- 여러 actuator 대상 enable/disable/zero/damping/policy 송신은 `RobotController` private method의 단순 for-loop에서 직접 보입니다.
+- `ControlCommandShm`은 ctypes C-compatible layout이며 motor command tearing을 의도적으로 허용합니다.
+- seqlock, sequence counter, zero-set generation은 사용하지 않습니다.
+- 외부 GUI/operator process는 safety mode를 SHM에 쓰지 않고 `OperatorCommandShm`에 command만 씁니다.
+- telemetry는 control용 `ShmStatePublisher`와 dashboard용 `DashboardPublisher`로 분리되어 있습니다.
 - `runtime.mode: simulation`에서 `can0` 같은 real CAN interface는 reject됩니다.
 - `runtime.mode: hardware`에서 `vcan0`는 reject됩니다.
 - `can.motors.enter_on_start: true`는 simulation/hardware startup gate에서 금지됩니다.
 - `motor_id` 대신 CAN ID를 기준으로 actuator를 식별합니다.
-- silent fallback은 금지합니다. fallback policy는 `FALLBACK_POLICY.md`와 `docs/SAFETY.md`를 따릅니다.
+- HAL은 `qhrr0_hw`를 import하지 않습니다. QHRR0 제품 종속 구현은 최상단 `qhrr0_hw/`에 둡니다.
+- silent fallback은 금지합니다. fallback policy는 `FALLBACK_POLICY.md`를 따릅니다.
 
 ## Useful Commands
 
 ```bash
 python3 -m robot_controller.main --config config/app_config/robot_controller.yaml
-python3 -m robot_controller.process.can_daemon.main --config config/app_config/robot_controller.yaml --replace-existing-socket
-python3 -m robot_controller.process.task_controller.main --help
+python3 -m robot_controller.subprocesses.can_daemon.main --config config/app_config/robot_controller.yaml --replace-existing-socket
+python3 -m robot_controller.subprocesses.task_controller.main --help
 python3 run_mujoco_simulation.py --help
 candump -td vcan0
 ```

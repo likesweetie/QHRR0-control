@@ -5,7 +5,7 @@ import unittest
 
 from hal.can_bus import CANFrame
 
-from robot_controller.QHRR0_HW.SPG_actuator.dongilC_motor_protocol import (
+from qhrr0_hw.actuators.dongilc_protocol import (
     SPGActuatorProtocol,
     SPGMITConfig,
     float_to_uint,
