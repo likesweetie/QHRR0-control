@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-from robot_controller.core.robot_state_shm import RobotStateShmReader
+from robot_controller.shm.robot_state import RobotStateShm as RobotStateShmReader
 
 
 class ControlStateNotReady(RuntimeError):

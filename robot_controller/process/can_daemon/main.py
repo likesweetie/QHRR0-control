@@ -9,61 +9,10 @@ import threading
 from pathlib import Path
 
 from robot_controller.core.config import load_robot_controller_config
-from robot_controller.core.robot_state_shm import RobotStateShmReader
 from robot_controller.utils.hal_can_bus import CANFrame, CANDaemon, SocketCANBus
 
 
 logger = logging.getLogger(__name__)
-SPG_CMD_MIT_ENTER = 0xC1
-ENABLE_BLOCK_STATES = {
-    "CREATED",
-    "DISARMED",
-    "FAULT_LATCHED",
-    "ESTOP",
-    "SHUTTING_DOWN",
-    "STOPPED",
-}
-
-
-def normalize_state_name(value: object) -> str | None:
-    if value is None:
-        return None
-    normalized = "".join(char if char.isalnum() else "_" for char in str(value).strip().upper())
-    normalized = "_".join(part for part in normalized.split("_") if part)
-    return normalized or None
-
-
-def is_operator_estop_damping(state_name: str | None, reason: object) -> bool:
-    return state_name == "DAMPING" and "E-STOP" in str(reason or "").upper()
-
-
-def motor_enable_block_reason(
-    frame: CANFrame,
-    *,
-    actuator_can_ids: set[int],
-    read_control_state,
-) -> str | None:
-    if int(frame.can_id) not in actuator_can_ids:
-        return None
-    data = bytes(frame.data)
-    if not data or data[0] != SPG_CMD_MIT_ENTER:
-        return None
-    try:
-        control_state = read_control_state()
-    except FileNotFoundError as exc:
-        return f"motor enable blocked because controller state SHM is unavailable: {exc}"
-    except Exception as exc:
-        return f"motor enable blocked because controller state SHM is unreadable: {exc}"
-    if control_state is None:
-        return "motor enable blocked because controller safety state is unavailable"
-    safety_state = normalize_state_name(control_state.get("safety_state"))
-    if safety_state is None:
-        return "motor enable blocked because controller safety_state is missing"
-    if safety_state in ENABLE_BLOCK_STATES:
-        return f"motor enable blocked while controller safety state is {safety_state}"
-    if is_operator_estop_damping(safety_state, control_state.get("safety_reason")):
-        return "motor enable blocked while controller is in operator E-stop damping"
-    return None
 
 
 class RxSubscribers:
@@ -110,7 +59,6 @@ class CANSubprocessDaemon:
         self._server_sock: socket.socket | None = None
         self._can_bus: SocketCANBus | None = None
         self._can_daemon: CANDaemon | None = None
-        self._control_state_reader = RobotStateShmReader(self.config.shm.control_state.name)
         self._client_threads: list[threading.Thread] = []
 
     def run(self) -> None:
@@ -148,7 +96,6 @@ class CANSubprocessDaemon:
         if self._can_bus is not None:
             self._can_bus.close()
             self._can_bus = None
-        self._control_state_reader.close()
         if self.socket_path.exists():
             self.socket_path.unlink()
 
@@ -220,13 +167,6 @@ class CANSubprocessDaemon:
                     can_id=int(message["can_id"]),
                     data=bytes.fromhex(str(message["data"])),
                 )
-                block_reason = motor_enable_block_reason(
-                    frame,
-                    actuator_can_ids=set(self.config.can.motors.can_ids),
-                    read_control_state=self._control_state_reader.read_latest,
-                )
-                if block_reason is not None:
-                    raise RuntimeError(block_reason)
                 assert self._can_daemon is not None
                 ok = self._can_daemon.send(
                     frame,

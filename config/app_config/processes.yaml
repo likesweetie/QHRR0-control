@@ -3,7 +3,7 @@ processes:
     command:
       - python3
       - -m
-      - robot_controller.process.can_daemon.main
+      - robot_controller.subprocesses.can_daemon.main
       - --config
       - config/app_config/robot_controller.yaml
       - --replace-existing-socket
@@ -15,7 +15,7 @@ processes:
     env: {}
 
   - name: dashboard
-    command: ["python3", "-m", "robot_controller.process.dashboard.backend.app"]
+    command: ["python3", "-m", "robot_controller.subprocesses.dashboard.main"]
     start_order: 99
     stop_order: 99
     new_terminal: true
@@ -28,7 +28,7 @@ processes:
     command:
       - python3
       - -m
-      - robot_controller.process.aux_reader.main
+      - robot_controller.subprocesses.aux_reader.main
       - --controller-config
       - config/app_config/robot_controller.yaml
       - --joystick-dev
@@ -41,7 +41,7 @@ processes:
     env: {}
 
   - name: task_controller
-    command: ["python3", "-m", "robot_controller.process.task_controller.main"]
+    command: ["python3", "-m", "robot_controller.subprocesses.task_controller.main"]
     start_order: 30
     stop_order: 70
     new_terminal: true

@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from robot_controller.core.robot_state_shm import RobotStateShmReader
+from robot_controller.shm.robot_state import RobotStateShm as RobotStateShmReader
 
 from .state import MonitorState, hex_id
 
@@ -73,7 +73,8 @@ class DashboardRobotStateReader:
         if robot_state is None:
             return self._channel_result(shm_key, shm_name, "waiting", None, None)
 
-        if str(robot_state.get("schema", "")) != expected_schema:
+        schema = str(robot_state.get("schema", ""))
+        if schema not in (expected_schema, "qhrr.robot_state.cstruct.v1"):
             return self._channel_result(
                 shm_key,
                 shm_name,
@@ -212,7 +213,7 @@ class DashboardRobotStateReader:
         controller_state = None
         if isinstance(payload, dict):
             controller_state = payload.get("controller_state")
-            safety_state = payload.get("safety_state")
+            safety_state = payload.get("safety_state") or controller_state
             control_action = payload.get("control_action")
             safety_reason = payload.get("safety_reason")
             fault_code = payload.get("fault_code")

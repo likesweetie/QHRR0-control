@@ -1,2 +1,0 @@
-[process_supervisor] log file: /home/kale/QHRR_control/log/20260525_132305/can_daemon.log
-[INFO] __main__: CAN daemon subprocess ready: /tmp/qhrr_can_daemon.sock

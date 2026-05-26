@@ -3,8 +3,8 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable
 
-from frame import CANFrame
-from can_types import CANFrameCallback
+from .frame import CANFrame
+from .can_types import CANFrameCallback
 
 
 logger = logging.getLogger(__name__)

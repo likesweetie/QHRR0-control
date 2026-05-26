@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from frame import CANFrame
+from .frame import CANFrame
 import socket
 import struct
 

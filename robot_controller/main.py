@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .config import HardwareSafetyOptions, validate_runtime_safety
 from .core.config import load_robot_controller_config
-from .robot_controller import RobotController
+from .controller import RobotController
 
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "app_config" / "robot_controller.yaml"

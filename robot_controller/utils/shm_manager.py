@@ -9,6 +9,9 @@ from ..core.robot_state_shm import (
     ROBOT_STATE_MAGIC,
     ROBOT_STATE_VERSION,
 )
+from robot_controller.shm.control_command import ControlCommandShm
+from robot_controller.shm.operator_command import OperatorCommandShm
+from robot_controller.shm.robot_state import RobotStateShm
 
 
 MIT_COMMAND_MAGIC = 0x4D495443
@@ -40,22 +43,14 @@ class ShmManager:
             stale.unlink()
 
     def create_all(self) -> None:
-        mit_size = mit_command_shm_size(self.config.mit_command.target_count)
-        mit = shared_memory.SharedMemory(
-            name=self.config.mit_command.name,
-            create=True,
-            size=mit_size,
-        )
-        self._segments[self.config.mit_command.name] = mit
-        self._init_mit_command_segment(mit)
+        control_command = ControlCommandShm.create(self.config.mit_command.name)
+        self._segments[self.config.mit_command.name] = control_command.shm
 
-        control_state = shared_memory.SharedMemory(
+        control_state = RobotStateShm.create(
             name=self.config.control_state.name,
-            create=True,
             size=int(self.config.control_state.size_bytes),
         )
-        self._segments[self.config.control_state.name] = control_state
-        self._init_robot_state_segment(control_state)
+        self._segments[self.config.control_state.name] = control_state.shm
 
         aux_command = shared_memory.SharedMemory(
             name=self.config.aux_command.name,
@@ -65,21 +60,17 @@ class ShmManager:
         self._segments[self.config.aux_command.name] = aux_command
         self._init_robot_state_segment(aux_command)
 
-        operator_command = shared_memory.SharedMemory(
+        operator_command = OperatorCommandShm.create(
             name=self.config.operator_command.name,
-            create=True,
             size=int(self.config.operator_command.size_bytes),
         )
-        self._segments[self.config.operator_command.name] = operator_command
-        self._init_robot_state_segment(operator_command)
+        self._segments[self.config.operator_command.name] = operator_command.shm
 
-        dashboard_state = shared_memory.SharedMemory(
+        dashboard_state = RobotStateShm.create(
             name=self.config.dashboard_state.name,
-            create=True,
             size=int(self.config.dashboard_state.size_bytes),
         )
-        self._segments[self.config.dashboard_state.name] = dashboard_state
-        self._init_robot_state_segment(dashboard_state)
+        self._segments[self.config.dashboard_state.name] = dashboard_state.shm
 
     def close_all(self) -> None:
         for segment in self._segments.values():

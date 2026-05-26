@@ -20,6 +20,7 @@ class CommandError(RuntimeError):
 
 ENABLE_BLOCK_STATES = {
     "CREATED",
+    "DISABLED",
     "DISARMED",
     "FAULT_LATCHED",
     "ESTOP",

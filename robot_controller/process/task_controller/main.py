@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 
 from robot_controller.core.config import load_robot_controller_config
-from robot_controller.core.state import MitTarget
 from robot_controller.process.task_controller.policy import (
     action_offset,
     load_policies,
@@ -21,7 +20,7 @@ from robot_controller.process.task_controller.shm_io import (
     ControlStateReader,
     state_vectors,
 )
-from robot_controller.utils.shm_command_router import ShmMitCommandWriter
+from robot_controller.shm.control_command import ControlCommandShm, ControlTarget
 
 
 RUNNING = True
@@ -95,10 +94,10 @@ def main() -> int:
 
     control_reader = ControlStateReader(controller_config.shm.control_state.name)
     aux_reader = AuxCommandReader(controller_config.shm.aux_command.name)
-    mit_writer = ShmMitCommandWriter(controller_config.shm.mit_command)
+    control_command_writer = ControlCommandShm.open_writer(controller_config.shm.mit_command.name)
     print(
         f"[task_controller] control={controller_config.shm.control_state.name} "
-        f"aux={controller_config.shm.aux_command.name} mit={controller_config.shm.mit_command.name}",
+        f"aux={controller_config.shm.aux_command.name} control_cmd={controller_config.shm.mit_command.name}",
         flush=True,
     )
 
@@ -144,15 +143,15 @@ def main() -> int:
             active_policy.set_commands(float(lin_vel[0]), float(lin_vel[1]), float(ang_vel_cmd[2]), mode)
             q_target = active_policy.compute_action() + action_offset(active_policy, robot_name, dof_pos, mode)
 
-            mit_writer.publish(
+            control_command_writer.write_targets(
                 [
-                    MitTarget(
+                    ControlTarget(
                         can_id=can_id,
-                        position_rad=float(q_target[index]),
-                        velocity_rad_s=0.0,
+                        q=float(q_target[index]),
+                        dq=0.0,
                         kp=kp,
                         kd=kd,
-                        torque_ff_nm=0.0,
+                        tau=0.0,
                     )
                     for index, can_id in enumerate(can_ids)
                 ]
@@ -179,7 +178,7 @@ def main() -> int:
     finally:
         control_reader.close()
         aux_reader.close()
-        mit_writer.close()
+        control_command_writer.close()
     return 0
 
 

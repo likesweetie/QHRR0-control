@@ -49,7 +49,6 @@ class RobotControlLoop:
         self.hardware.imu.request_on_tick(now)
         feedback = self.hardware.read_feedback(now)
         command = self.policy_command_source.read_latest()
-        print(command)
         operator_command: OperatorCommand | None = self.operator_command_source.read_latest()
         validated_command, validation_error = self._validate_command(command)
 

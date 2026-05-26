@@ -5,10 +5,10 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from frame import CANFrame
-from bus import CANBus, SocketCANBus
-from dispatcher import CANDispatcher
-from can_types import CANFrameCallback
+from .frame import CANFrame
+from .bus import CANBus, SocketCANBus
+from .dispatcher import CANDispatcher
+from .can_types import CANFrameCallback
 
 logger = logging.getLogger(__name__)
 

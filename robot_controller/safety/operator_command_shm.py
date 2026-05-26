@@ -1,56 +1,39 @@
 from __future__ import annotations
 
-import time
-
-from robot_controller.core.robot_state_shm import RobotStateShmReader, RobotStateShmWriter
+from robot_controller.shm.operator_command import (
+    OperatorCommandCode,
+    OperatorCommandShm,
+)
 
 from .safety_controller import OperatorCommand
 
 
-OPERATOR_COMMAND_SCHEMA = "qhrr.operator_command.v1"
-
-
 class OperatorCommandShmSource:
     def __init__(self, name: str) -> None:
-        self.name = name
-        self.reader = RobotStateShmReader(name)
-        self._last_command_id: int | None = None
+        self.reader = OperatorCommandShm.open_reader(name)
 
     def close(self) -> None:
         self.reader.close()
 
     def read_latest(self) -> OperatorCommand | None:
-        payload = self.reader.read_latest()
-        if payload is None:
+        raw = self.reader.read_new()
+        if raw is None:
             return None
-        if payload.get("schema") != OPERATOR_COMMAND_SCHEMA:
-            raise RuntimeError(
-                f"Operator command SHM schema mismatch: {payload.get('schema')!r}"
-            )
         try:
-            command_id = int(payload["command_id"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise RuntimeError(f"Operator command SHM is missing command_id: {exc}") from exc
-
-        if command_id == self._last_command_id:
+            code = OperatorCommandCode(int(raw.command))
+        except ValueError:
             return None
-        self._last_command_id = command_id
-
-        command = OperatorCommand(
-            arm=bool(payload.get("arm", False)),
-            clear_fault=bool(payload.get("clear_fault", False)),
-            estop=bool(payload.get("estop", False)),
+        return OperatorCommand(
+            arm=code == OperatorCommandCode.ENABLE,
+            clear_fault=code == OperatorCommandCode.RESET_FAULT,
+            estop=code == OperatorCommandCode.ESTOP,
         )
-        if command.arm or command.clear_fault or command.estop:
-            return command
-        return None
 
 
 class OperatorCommandShmWriter:
     def __init__(self, name: str, size_bytes: int, *, source: str) -> None:
-        self.writer = RobotStateShmWriter(name, size_bytes)
-        self.source = source
-        self._last_command_id = 0
+        del size_bytes, source
+        self.writer = OperatorCommandShm.open_writer(name)
 
     def close(self) -> None:
         self.writer.close()
@@ -62,18 +45,10 @@ class OperatorCommandShmWriter:
         clear_fault: bool = False,
         estop: bool = False,
     ) -> int:
-        command_id = max(time.time_ns(), self._last_command_id + 1)
-        self._last_command_id = command_id
-        self.writer.publish(
-            {
-                "schema": OPERATOR_COMMAND_SCHEMA,
-                "timestamp_monotonic": time.monotonic(),
-                "timestamp_unix": time.time(),
-                "command_id": command_id,
-                "source": self.source,
-                "arm": bool(arm),
-                "clear_fault": bool(clear_fault),
-                "estop": bool(estop),
-            }
-        )
-        return command_id
+        if arm:
+            return self.writer.publish(OperatorCommandCode.ENABLE)
+        if clear_fault:
+            return self.writer.publish(OperatorCommandCode.RESET_FAULT)
+        if estop:
+            return self.writer.publish(OperatorCommandCode.ESTOP)
+        return self.writer.publish(OperatorCommandCode.NONE)

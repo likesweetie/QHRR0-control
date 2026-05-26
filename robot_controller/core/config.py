@@ -113,6 +113,11 @@ class RobotControllerCoreConfig:
 
 
 @dataclass
+class StateMachineConfig:
+    enable_duration_s: float
+
+
+@dataclass
 class RuntimeModeConfig:
     mode: str
 
@@ -140,6 +145,7 @@ class RobotControllerConfig:
     runtime: RuntimeModeConfig
     hardware: HardwareSafetyConfig
     safety: SafetyPolicyConfig
+    state_machine: StateMachineConfig
     robot_controller: RobotControllerCoreConfig
     shm: ShmConfig
     can: CanConfig
@@ -241,6 +247,8 @@ def _validate_config(config: RobotControllerConfig) -> None:
         raise ConfigError("robot_controller.control_hz must be > 0")
     if config.robot_controller.shutdown_timeout_s < 0.0:
         raise ConfigError("robot_controller.shutdown_timeout_s must be >= 0")
+    if config.state_machine.enable_duration_s < 0.0:
+        raise ConfigError("state_machine.enable_duration_s must be >= 0")
     if config.shm.mit_command.target_count <= 0:
         raise ConfigError("shm.mit_command.target_count must be > 0")
     if config.shm.control_state.size_bytes < 4096:
@@ -333,6 +341,7 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
     runtime_raw = _require_mapping(raw, "runtime", "<root>")
     hardware_raw = _require_mapping(raw, "hardware", "<root>")
     safety_raw = _require_mapping(raw, "safety", "<root>")
+    state_machine_raw = _require_mapping(raw, "state_machine", "<root>")
     core_raw = _require_mapping(raw, "robot_controller", "<root>")
     shm_raw = _require_mapping(raw, "shm", "<root>")
     aux_command_raw = _require_mapping(shm_raw, "aux_command", "shm")
@@ -370,6 +379,13 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
             damping_timeout_s=_require_float(safety_raw, "damping_timeout_s", "safety"),
             command_loss_action=str(_require_key(safety_raw, "command_loss_action", "safety")),
             feedback_stale_action=str(_require_key(safety_raw, "feedback_stale_action", "safety")),
+        ),
+        state_machine=StateMachineConfig(
+            enable_duration_s=_require_float(
+                state_machine_raw,
+                "enable_duration_s",
+                "state_machine",
+            ),
         ),
         robot_controller=RobotControllerCoreConfig(
             name=str(_require_key(core_raw, "name", "robot_controller")),

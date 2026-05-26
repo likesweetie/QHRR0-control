@@ -16,9 +16,9 @@ joint_idx_conversion_isaaclab_to_rainbow:
 
 #matched to Isaac config order
 default_joint_angle:
-  - -0.15
-  - -0.7
-  - 1.2
+  - -0.0
+  - -1.2
+  - 2.0
 
 
 action_scale: 0.25

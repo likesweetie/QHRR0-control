@@ -18,6 +18,9 @@ safety:
   command_loss_action: damping
   feedback_stale_action: fault
 
+state_machine:
+  enable_duration_s: 0.5
+
 robot_controller:
   name: qhrr_robot_controller
   control_hz: 500

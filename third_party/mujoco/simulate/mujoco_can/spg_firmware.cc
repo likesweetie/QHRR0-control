@@ -148,8 +148,8 @@ void SPGFirmware::handle_mit_control(
   pending_command_.mode = ActuatorControlMode::kImpedance;
   pending_command_.position_rad =
       position_mit_to_physical_rad(decoded.p_des_rad);
-  pending_command_.velocity_rad_s = 0;
-  pending_command_.torque_nm = 0;
+  pending_command_.velocity_rad_s = decoded.v_des_rad_s;
+  pending_command_.torque_nm = decoded.tau_ff_nm;
   pending_command_.kp = decoded.kp;
   pending_command_.kd = decoded.kd;
   pending_command_.last_update_time = sim_time;

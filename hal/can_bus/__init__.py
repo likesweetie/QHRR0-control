@@ -12,13 +12,13 @@ This package exposes the public CAN API:
 - CAN device information
 """
 
-"""hal.can_bus.base package init"""
-
-from frame import CANFrame
-from bus import CANBus, SocketCANBus
-from dispatcher import CANDispatcher
-from daemon import CANDaemon
-from can_types import CANFrameCallback
+from .bus import CANBus, SocketCANBus
+from .can_types import CANFrameCallback
+from .daemon import CANDaemon
+from .dispatcher import CANDispatcher
+from .frame import CANFrame
+from .process_client import CANProcessClient
+from .process_transport import CANProcessTransport
 
 
 __all__ = [
@@ -28,4 +28,6 @@ __all__ = [
     "CANDispatcher",
     "CANDaemon",
     "CANFrameCallback",
+    "CANProcessClient",
+    "CANProcessTransport",
 ]
