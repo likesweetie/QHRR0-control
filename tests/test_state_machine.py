@@ -15,21 +15,32 @@ def command(code: OperatorCommandCode) -> OperatorCommandC:
 
 
 class ControllerStateMachineTest(unittest.TestCase):
-    def test_enable_duration_transitions_to_normal(self) -> None:
+    def test_enable_duration_transitions_to_damping(self) -> None:
         sm = ControllerStateMachine(enable_duration_s=0.5, mode_enter_time=10.0)
         sm.update(command(OperatorCommandCode.ENABLE), 10.0)
         self.assertEqual(sm.mode, ControllerMode.ENABLING)
         sm.update(None, 10.49)
         self.assertEqual(sm.mode, ControllerMode.ENABLING)
         sm.update(None, 10.5)
-        self.assertEqual(sm.mode, ControllerMode.NORMAL)
+        self.assertEqual(sm.mode, ControllerMode.DAMPING)
 
-    def test_repeated_enable_does_not_block_normal_transition(self) -> None:
+    def test_repeated_enable_does_not_reenter_enabling_from_damping(self) -> None:
         sm = ControllerStateMachine(enable_duration_s=0.5, mode_enter_time=10.0)
         enable = command(OperatorCommandCode.ENABLE)
         sm.update(enable, 10.0)
         self.assertEqual(sm.mode, ControllerMode.ENABLING)
         sm.update(enable, 10.5)
+        self.assertEqual(sm.mode, ControllerMode.DAMPING)
+        sm.update(enable, 11.0)
+        self.assertEqual(sm.mode, ControllerMode.DAMPING)
+
+    def test_run_transitions_from_damping_to_normal(self) -> None:
+        sm = ControllerStateMachine(
+            enable_duration_s=0.0,
+            mode=ControllerMode.DAMPING,
+            mode_enter_time=1.0,
+        )
+        sm.update(command(OperatorCommandCode.RUN), 2.0)
         self.assertEqual(sm.mode, ControllerMode.NORMAL)
 
     def test_estop_latches_until_reset_fault(self) -> None:
@@ -39,6 +50,13 @@ class ControllerStateMachineTest(unittest.TestCase):
         sm.update(command(OperatorCommandCode.ENABLE), 2.0)
         self.assertEqual(sm.mode, ControllerMode.ESTOP)
         sm.update(command(OperatorCommandCode.RESET_FAULT), 3.0)
+        self.assertEqual(sm.mode, ControllerMode.DISABLED)
+
+    def test_zero_setting_exits_to_disabled_when_command_released(self) -> None:
+        sm = ControllerStateMachine(enable_duration_s=0.0, mode_enter_time=1.0)
+        sm.update(command(OperatorCommandCode.ZERO_SET), 1.0)
+        self.assertEqual(sm.mode, ControllerMode.ZERO_SETTING)
+        sm.update(command(OperatorCommandCode.NONE), 2.0)
         self.assertEqual(sm.mode, ControllerMode.DISABLED)
 
 

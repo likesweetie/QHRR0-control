@@ -1,0 +1,5 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260526_150554/aux_reader.log
+[aux_reader] publishing aux command shm: qhrr_aux_command
+[aux_reader] joystick device: /dev/input/js0
+[aux_reader] published neutral aux command
+[aux_reader] signal 15, shutting down

@@ -14,6 +14,7 @@ class OperatorCommandCode(IntEnum):
     ZERO_SET = 4
     ESTOP = 5
     RESET_FAULT = 6
+    RUN = 7
 
 
 class OperatorCommandC(ctypes.Structure):
@@ -46,8 +47,6 @@ class OperatorCommandShm:
             raise RuntimeError(
                 f"OperatorCommandShm segment is too small: {len(self.shm.buf)}/{OPERATOR_COMMAND_SIZE}"
             )
-        self._last_timestamp_ns = 0
-
     @classmethod
     def open_reader(cls, name: str):
         return cls(name, create=False)
@@ -76,13 +75,6 @@ class OperatorCommandShm:
 
     def read_relaxed(self) -> OperatorCommandC:
         return OperatorCommandC.from_buffer_copy(self.shm.buf[:OPERATOR_COMMAND_SIZE])
-
-    def read_new(self) -> OperatorCommandC | None:
-        command = self.read_relaxed()
-        if command.timestamp_ns == 0 or command.timestamp_ns == self._last_timestamp_ns:
-            return None
-        self._last_timestamp_ns = int(command.timestamp_ns)
-        return command
 
     def write(self, command: OperatorCommandC) -> None:
         data = bytes(command)
@@ -114,9 +106,12 @@ class OperatorCommandShmWriter:
         damping: bool = False,
         zero_set: bool = False,
         disable: bool = False,
+        run: bool = False,
     ) -> int:
         if arm:
             return self.writer.publish(OperatorCommandCode.ENABLE)
+        if run:
+            return self.writer.publish(OperatorCommandCode.RUN)
         if clear_fault:
             return self.writer.publish(OperatorCommandCode.RESET_FAULT)
         if estop:

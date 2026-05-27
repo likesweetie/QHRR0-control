@@ -44,6 +44,8 @@
         <p id="machineReason" class="machine-reason">-</p>
         <div class="operator-actions">
           <button id="armButton" class="button primary" type="button">Arm</button>
+          <button id="runButton" class="button primary" type="button">Run</button>
+          <button id="dampingButton" class="button secondary" type="button">Damping</button>
           <button id="faultClearButton" class="button secondary" type="button">Fault Clear</button>
           <button id="estopButton" class="button danger" type="button">ESTOP</button>
         </div>
@@ -97,6 +99,37 @@
         </form>
 
         <p id="commandMessage" class="message-line"></p>
+      </section>
+
+      <section id="policyCommandPanel" class="panel policy-command-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Actuator Output</p>
+            <h2>Applied MIT Command</h2>
+          </div>
+          <span id="policyCommandBadge" class="badge muted">waiting</span>
+        </div>
+        <div class="metric-grid compact">
+          <div><span>Source</span><strong id="policyCommandSource">-</strong></div>
+          <div><span>Targets</span><strong id="policyCommandTargets">0</strong></div>
+          <div><span>Age</span><strong id="policyCommandAge">never</strong></div>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>CAN</th>
+                <th>P target</th>
+                <th>V target</th>
+                <th>KP</th>
+                <th>KD</th>
+                <th>Tau target</th>
+              </tr>
+            </thead>
+            <tbody id="policyCommandRows"></tbody>
+          </table>
+        </div>
+        <p id="policyCommandError" class="error-line"></p>
       </section>
 
       <section class="panel robot-panel">
@@ -161,7 +194,7 @@
                 <th>State</th>
                 <th>Age</th>
                 <th>Temp</th>
-                <th>Iq[A]</th>
+                <th>Current[A]</th>
                 <th>Speed</th>
                 <th>Pos</th>
                 <th>Raw</th>
@@ -208,6 +241,6 @@
       </section>
     </main>
 
-    <script src="/static/app.js?v=20260526-arm-disabled"></script>
+    <script src="/static/app.js?v=20260527-applied-command"></script>
   </body>
 </html>

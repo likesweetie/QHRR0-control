@@ -49,10 +49,16 @@ class ControllerStateMachine:
             self.enter(ControllerMode.DISABLED, now)
             return self.mode
         if code == OperatorCommandCode.ENABLE:
-            if self.mode in (ControllerMode.DISABLED, ControllerMode.DAMPING, ControllerMode.ZERO_SETTING):
+            if self.mode in (ControllerMode.DISABLED, ControllerMode.ZERO_SETTING):
                 self.enter(ControllerMode.ENABLING, now)
                 return self.mode
             if self.mode != ControllerMode.ENABLING:
+                return self.mode
+        if code == OperatorCommandCode.RUN:
+            if self.mode == ControllerMode.DAMPING:
+                self.enter(ControllerMode.NORMAL, now)
+                return self.mode
+            if self.mode == ControllerMode.NORMAL:
                 return self.mode
         if code == OperatorCommandCode.DAMPING:
             self.enter(ControllerMode.DAMPING, now)
@@ -64,9 +70,13 @@ class ControllerStateMachine:
             self.enter(ControllerMode.DISABLED, now)
             return self.mode
 
+        if self.mode == ControllerMode.ZERO_SETTING and code == OperatorCommandCode.NONE:
+            self.enter(ControllerMode.DISABLED, now)
+            return self.mode
+
         if self.mode == ControllerMode.ENABLING:
             if now - self.mode_enter_time >= self.enable_duration_s:
-                self.enter(ControllerMode.NORMAL, now)
+                self.enter(ControllerMode.DAMPING, now)
 
         return self.mode
 

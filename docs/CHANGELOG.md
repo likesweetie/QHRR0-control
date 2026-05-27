@@ -13,6 +13,7 @@
 ### Changed
 
 - `RobotController.tick()` now directly dispatches exactly one actuator output path per controller mode.
+- Arm and policy run are split: `ENABLING` now transitions to `DAMPING`, and `RUN` is required for `NORMAL`.
 - `robot_controller/process` moved to `robot_controller/subprocesses`.
 - `robot_controller/processes` moved to `robot_controller/supervisor`.
 - `robot_controller/state` moved to `robot_controller/telemetry`.
@@ -23,7 +24,7 @@
 
 - Nested `robot_controller/QHRR0_HW`.
 - `robot_controller/hardware`, `robot_controller/command`, `robot_controller/safety`, and old `robot_controller/state` packages.
-- Runtime command seqlock/sequence/generation path.
+- Runtime command consistency counter path.
 
 ### Safety
 

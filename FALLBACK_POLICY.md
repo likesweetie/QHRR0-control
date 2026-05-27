@@ -30,14 +30,15 @@ configuration errors, transport failures, or stale command state.
   identifiers and protocol layouts.
 - Treat missing actuator CAN IDs, unknown command sources, malformed SHM
   headers, and partial MIT target batches as errors.
-- When command freshness expires, transition through `SafetyController` to an
-  explicit `ControlAction`. Do not continue replaying the last command.
-- Command missing/stale/read-collision must be represented as a
-  `CommandReadResult` with status and reason.
-- Invalid command values must be rejected by `CommandValidator`; do not clip
-  silently.
+- Command fallback must be visible in `RobotController.tick()` or
+  `ControllerStateMachine`; do not hide actuator output changes behind helper
+  layers.
+- `ControlCommandShm` is a relaxed C-struct view. Motor command tearing is
+  accepted, but missing or unknown CAN IDs must not be inferred.
+- Invalid command values must not be clipped silently. If clipping is added,
+  the code must log the value and reason.
 - Feedback stale, CAN daemon death, and task controller death must be visible
-  to `SafetyController` through `RobotFeedback` and `ProcessHealth`.
+  through telemetry or fatal errors before any real-hardware claim is made.
 - The current damping fallback is a MIT velocity damping-like command:
   `q=0`, `qd=0`, `kp=0`, `kd=safety.velocity_damping_kd`, `tau=0`.
   It must not be named `safe_damping` unless actuator firmware behavior is

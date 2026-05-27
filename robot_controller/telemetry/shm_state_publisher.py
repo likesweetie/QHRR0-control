@@ -3,7 +3,12 @@ from __future__ import annotations
 import math
 import time
 
-from robot_controller.shm.robot_state import MAX_ROBOT_STATE_ACTUATORS, RobotStateC, RobotStateShm
+from robot_controller.shm.robot_state import (
+    COMMAND_OUTPUT_SOURCE_VALUES,
+    MAX_ROBOT_STATE_ACTUATORS,
+    RobotStateC,
+    RobotStateShm,
+)
 from robot_controller.telemetry.robot_snapshot import RobotSnapshot
 
 
@@ -59,6 +64,19 @@ def snapshot_to_cstruct(snapshot: RobotSnapshot) -> RobotStateC:
         out.online = int(bool(item.online))
         out.stale = int(bool(item.stale))
 
+    command_output = snapshot.command_output
+    state.command_output.timestamp_monotonic = float(command_output.timestamp_monotonic)
+    state.command_output.source = int(COMMAND_OUTPUT_SOURCE_VALUES.get(command_output.source, 0))
+    state.command_output.target_count = min(len(command_output.targets), MAX_ROBOT_STATE_ACTUATORS)
+    for index, item in enumerate(command_output.targets[:MAX_ROBOT_STATE_ACTUATORS]):
+        out = state.command_output.targets[index]
+        out.can_id = int(item.can_id)
+        out.p_target_rad = _float_or_zero(item.p_target_rad)
+        out.v_target_rad_s = _float_or_zero(item.v_target_rad_s)
+        out.kp = _float_or_zero(item.kp)
+        out.kd = _float_or_zero(item.kd)
+        out.tau_target_nm = _float_or_zero(item.tau_target_nm)
+
     return state
 
 
@@ -72,4 +90,3 @@ def _float_or_zero(value: float | None) -> float:
     if value is None or not math.isfinite(float(value)):
         return 0.0
     return float(value)
-

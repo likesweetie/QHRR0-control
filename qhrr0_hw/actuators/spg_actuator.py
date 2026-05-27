@@ -12,6 +12,7 @@ def create_spg_actuator_driver(
     mit_config: SPGMITConfig,
     feedback_timeout_s: float,
     feedback_speed_is_motor_side: bool,
+    iq_count_to_amp: float | None,
 ) -> ActuatorDriver:
     return ActuatorDriver(
         name=spec.name,
@@ -21,7 +22,7 @@ def create_spg_actuator_driver(
             mit_config=mit_config,
             expose_single_turn_position=True,
             feedback_speed_is_motor_side=feedback_speed_is_motor_side,
+            iq_count_to_amp=iq_count_to_amp,
         ),
         feedback_timeout=feedback_timeout_s,
     )
-

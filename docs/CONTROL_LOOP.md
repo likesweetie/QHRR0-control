@@ -1,6 +1,6 @@
 # Control Loop
 
-현재 제어 루프는 `robot_controller/controller.py`의 `RobotController.tick()`에서 직접 보인다. 중간 `RobotControlLoop`, `SafetyController`, `RobotHardware`, `MotorBus` 계층은 사용하지 않는다.
+현재 제어 루프는 `robot_controller/controller.py`의 `RobotController.tick()`에서 직접 보인다.
 
 ## Frequency
 
@@ -53,6 +53,7 @@ sequenceDiagram
 | `NORMAL` | policy command from `ControlCommandShm` only |
 
 `NORMAL` is the only mode that calls `ControlCommandShm.read_relaxed()`.
+Arm does not enter `NORMAL` directly. After `enable_duration_s`, `ENABLING` transitions to `DAMPING`; a separate `RUN` operator command transitions `DAMPING` to `NORMAL`.
 
 ## MIT Damping-Like Command
 
@@ -70,6 +71,6 @@ This is named damping-like because hardware safety semantics depend on actuator 
 
 ## Policy Command Handling
 
-`ControlCommandShm` is a relaxed ctypes SHM view. Motor command tearing is intentionally allowed. No seqlock, sequence counter, double-buffer, or zero-set generation is used.
+`ControlCommandShm` is a relaxed ctypes SHM view. Motor command tearing is intentionally allowed. It does not use consistency counters or double buffering.
 
 `RobotController._send_policy_command()` iterates up to `min(cmd.num_targets, len(cmd.targets))`, looks up the actuator by `target.can_id`, and sends an impedance command frame for known CAN IDs.

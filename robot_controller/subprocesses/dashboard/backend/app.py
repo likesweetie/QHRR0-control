@@ -24,6 +24,7 @@ from robot_controller.core.platform_config import (
     resolve_config_path,
 )
 from robot_controller.shm.operator_command import OperatorCommandShmWriter
+from robot_controller.supervisor import ProcessSupervisor
 from hal.can_bus.process_client import CANProcessClient
 
 
@@ -34,6 +35,7 @@ if not CONFIG_PATH.is_absolute():
     CONFIG_PATH = PROJECT_ROOT / CONFIG_PATH
 FRONTEND_DIR = ROOT / "frontend"
 logger = logging.getLogger(__name__)
+PROTECTED_PROCESS_NAMES = frozenset({"can_daemon", "dashboard"})
 
 
 class RawSendRequest(BaseModel):
@@ -123,7 +125,7 @@ def resolve_transmit_ids(config: dict[str, Any], platform) -> None:
     dashboard["transmit_ids"] = resolved
 
 
-def load_config() -> dict[str, Any]:
+def load_config() -> tuple[dict[str, Any], Any]:
     raw = load_yaml_mapping(CONFIG_PATH)
     require_no_platform_owned_keys(raw)
     if "platform_config" not in raw:
@@ -185,7 +187,7 @@ def load_config() -> dict[str, Any]:
         }
         for actuator in platform.enabled_actuators
     ]
-    return config
+    return config, controller_config
 
 
 def require_section(config: dict[str, Any], section: str) -> dict[str, Any]:
@@ -293,8 +295,9 @@ def parse_hex_payload(value: str) -> bytes:
     return data
 
 
-config = load_config()
+config, controller_config = load_config()
 state = make_state(config)
+process_supervisor = ProcessSupervisor(controller_config.processes)
 robot_state_reader = (
     DashboardRobotStateReader(
         control_shm_name=str(nested(config, "robot_controller_state", "control_shm_name")),
@@ -354,8 +357,41 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 def dashboard_snapshot() -> dict:
     if robot_state_reader is None:
-        return state.snapshot()
-    return robot_state_reader.dashboard_snapshot()
+        snapshot = state.snapshot()
+    else:
+        snapshot = robot_state_reader.dashboard_snapshot()
+    snapshot["processes"] = process_status_rows()
+    return snapshot
+
+
+def process_status_rows() -> list[dict[str, Any]]:
+    return [
+        {
+            "name": name,
+            **dict(info),
+            "manageable": name not in PROTECTED_PROCESS_NAMES,
+            "management_reason": (
+                "managed by robot controller supervisor"
+                if name in PROTECTED_PROCESS_NAMES
+                else ""
+            ),
+        }
+        for name, info in sorted(process_supervisor.status().items())
+    ]
+
+
+def ensure_process_name(name: str) -> str:
+    if name not in process_supervisor.process_configs:
+        raise HTTPException(status_code=404, detail=f"Unknown process: {name}")
+    return name
+
+
+def ensure_process_manageable(name: str) -> None:
+    if name in PROTECTED_PROCESS_NAMES:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Process '{name}' is managed by the robot controller supervisor",
+        )
 
 
 async def socketcan_loop() -> None:
@@ -488,6 +524,36 @@ async def api_state() -> dict:
     return dashboard_snapshot()
 
 
+@app.get("/api/processes")
+async def api_processes() -> dict:
+    return {"ok": True, "processes": process_status_rows()}
+
+
+@app.post("/api/processes/{name}/start")
+async def api_process_start(name: str) -> dict:
+    name = ensure_process_name(name)
+    ensure_process_manageable(name)
+    logger.info("Dashboard requested process start: %s", name)
+    try:
+        await asyncio.to_thread(process_supervisor.start_by_name, name)
+    except (KeyError, RuntimeError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "processes": process_status_rows()}
+
+
+@app.post("/api/processes/{name}/stop")
+async def api_process_stop(name: str) -> dict:
+    name = ensure_process_name(name)
+    ensure_process_manageable(name)
+    logger.info("Dashboard requested process stop: %s", name)
+    timeout_s = float(controller_config.robot_controller.shutdown_timeout_s)
+    try:
+        await asyncio.to_thread(process_supervisor.stop_by_name, name, timeout_s)
+    except (KeyError, RuntimeError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "processes": process_status_rows()}
+
+
 @app.post("/api/tx/lock")
 async def tx_lock() -> dict:
     commands.lock_tx()
@@ -543,6 +609,24 @@ async def operator_fault_clear() -> dict:
 async def operator_arm() -> dict:
     try:
         command_id = operator_commands.publish(arm=True)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
+
+
+@app.post("/api/operator/run")
+async def operator_run() -> dict:
+    try:
+        command_id = operator_commands.publish(run=True)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
+
+
+@app.post("/api/operator/damping")
+async def operator_damping() -> dict:
+    try:
+        command_id = operator_commands.publish(damping=True)
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"ok": True, "command_id": command_id}

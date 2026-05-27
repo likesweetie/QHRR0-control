@@ -1,0 +1,19 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260526_140543/task_controller.log
+[task_controller] loaded policy qhrr: /home/kale/QHRR_control/policy/qhrr/qhrr/policy.onnx
+[task_controller] control=qhrr_control_state aux=qhrr_aux_command control_cmd=qhrr_mit_command
+[task_controller] target_policy_output_hz=50.000 rate_log_interval_s=1.0
+[task_controller] waiting for control_state
+[task_controller] control_state received
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/kale/QHRR_control/robot_controller/subprocesses/task_controller/main.py", line 200, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/subprocesses/task_controller/main.py", line 135, in main
+    [float(actuators[can_id]["position_rad"]) for can_id in can_ids],
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kale/QHRR_control/robot_controller/subprocesses/task_controller/main.py", line 135, in <listcomp>
+    [float(actuators[can_id]["position_rad"]) for can_id in can_ids],
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: float() argument must be a string or a real number, not 'NoneType'

@@ -17,6 +17,8 @@ from robot_controller.state_machine import ControllerMode, ControllerStateMachin
 from robot_controller.supervisor import ProcessSupervisor
 from robot_controller.telemetry import (
     ActuatorSnapshot,
+    CommandOutputSnapshot,
+    CommandTargetSnapshot,
     DashboardPublisher,
     ImuSnapshot,
     RobotSnapshot,
@@ -50,6 +52,9 @@ class RobotController:
         self.shm_state_publisher: ShmStatePublisher | None = None
         self.dashboard_publisher: DashboardPublisher | None = None
         self.processes = ProcessSupervisor(config.processes)
+        self._last_output_source = "NONE"
+        self._last_output_t = 0.0
+        self._last_output_targets: tuple[CommandTargetSnapshot, ...] = ()
         self._running = False
 
     def start(self) -> None:
@@ -173,6 +178,13 @@ class RobotController:
 
     def _create_actuator_drivers(self) -> dict[int, ActuatorDriver]:
         protocol_range = self.config.can.mit_protocol_range
+        iq_full_scale_count = float(self.config.platform.spg_mit.iq_full_scale_count)
+        if iq_full_scale_count <= 0.0:
+            raise ValueError("spg_mit.iq_full_scale_count must be positive")
+        iq_count_to_amp = (
+            float(self.config.platform.spg_mit.iq_full_scale_current_a)
+            / iq_full_scale_count
+        )
         mit_config = SPGMITConfig(
             p_max=protocol_range.position_rad,
             v_max=protocol_range.velocity_rad_s,
@@ -187,6 +199,7 @@ class RobotController:
                 mit_config=mit_config,
                 feedback_timeout_s=self.config.can.command_timeout_s,
                 feedback_speed_is_motor_side=True,
+                iq_count_to_amp=iq_count_to_amp,
             )
             for spec in self.robot_spec.actuators
         }
@@ -239,45 +252,82 @@ class RobotController:
             self.can.send_frame(self.imu.make_request_all_frame())
 
     def _send_disable_all(self) -> None:
+        self._record_output_command("DISABLE", ())
         for actuator in self.actuators.values():
             self.can.send_frame(actuator.make_disable_frame())
 
     def _send_enable_all(self) -> None:
+        self._record_output_command("ENABLE", ())
         for actuator in self.actuators.values():
             self.can.send_frame(actuator.make_enable_frame())
 
     def _send_zero_set_all(self) -> None:
+        self._record_output_command("ZERO_SET", ())
         for actuator in self.actuators.values():
             self.can.send_frame(actuator.make_zero_position_frame())
 
     def _send_damping_all(self) -> None:
-        for actuator in self.actuators.values():
+        kd = float(self.config.safety.velocity_damping_kd)
+        targets = tuple(
+            CommandTargetSnapshot(
+                can_id=can_id,
+                p_target_rad=0.0,
+                v_target_rad_s=0.0,
+                kp=0.0,
+                kd=kd,
+                tau_target_nm=0.0,
+            )
+            for can_id in sorted(self.actuators)
+        )
+        self._record_output_command("DAMPING", targets)
+        for can_id in sorted(self.actuators):
+            actuator = self.actuators[can_id]
             self.can.send_frame(
                 actuator.make_impedance_command_frame(
                     position_rad=0.0,
                     velocity_rad_s=0.0,
                     kp=0.0,
-                    kd=self.config.safety.velocity_damping_kd,
+                    kd=kd,
                     torque_ff_nm=0.0,
                 )
             )
 
     def _send_policy_command(self, cmd: ControlCommandC) -> None:
         n = min(int(cmd.num_targets), len(cmd.targets))
+        targets: list[CommandTargetSnapshot] = []
         for index in range(n):
             target = cmd.targets[index]
             actuator = self.actuators.get(int(target.can_id))
             if actuator is None:
                 continue
+            command_target = CommandTargetSnapshot(
+                can_id=int(target.can_id),
+                p_target_rad=float(target.q),
+                v_target_rad_s=float(target.dq),
+                kp=float(target.kp),
+                kd=float(target.kd),
+                tau_target_nm=float(target.tau),
+            )
+            targets.append(command_target)
             self.can.send_frame(
                 actuator.make_impedance_command_frame(
-                    position_rad=float(target.q),
-                    velocity_rad_s=float(target.dq),
-                    kp=float(target.kp),
-                    kd=float(target.kd),
-                    torque_ff_nm=float(target.tau),
+                    position_rad=command_target.p_target_rad,
+                    velocity_rad_s=command_target.v_target_rad_s,
+                    kp=command_target.kp,
+                    kd=command_target.kd,
+                    torque_ff_nm=command_target.tau_target_nm,
                 )
             )
+        self._record_output_command("POLICY", tuple(targets))
+
+    def _record_output_command(
+        self,
+        source: str,
+        targets: tuple[CommandTargetSnapshot, ...],
+    ) -> None:
+        self._last_output_source = source
+        self._last_output_t = time.monotonic()
+        self._last_output_targets = targets
 
     def _publish_state(self, *, force: bool = False) -> RobotSnapshot:
         snapshot = self._make_snapshot()
@@ -328,6 +378,11 @@ class RobotController:
                 gyro_online=bool(imu_comm["gyro"].is_online),
                 quat_stale=bool(imu_comm["quat"].is_stale),
                 gyro_stale=bool(imu_comm["gyro"].is_stale),
+            ),
+            command_output=CommandOutputSnapshot(
+                source=self._last_output_source,
+                timestamp_monotonic=self._last_output_t,
+                targets=self._last_output_targets,
             ),
         )
 

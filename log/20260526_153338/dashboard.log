@@ -1,0 +1,9 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260526_153338/dashboard.log
+INFO:     Started server process [151504]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49992 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:49994 - "POST /api/operator/arm HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49994 - "POST /api/operator/run HTTP/1.1" 200 OK

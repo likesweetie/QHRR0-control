@@ -92,9 +92,9 @@ public:
   std::size_t host_frame_count() const;
   std::size_t device_frame_count() const;
 
-  // model마다 base body 이름이 다를 수 있습니다.
-  // 예: "base", "trunk", "torso", "pelvis"
-  void set_base_body_name(const std::string& body_name);
+  void set_imu_sensor_names(
+      const std::string& quat_sensor_name,
+      const std::string& gyro_sensor_name);
 
   void set_spg_mit_config(const SPGMITConfig& config);
   void set_e2box_imu_config(const E2BoxImuFirmwareConfig& config);
@@ -152,13 +152,11 @@ private:
     std::vector<double> ctrl;
     std::vector<double> actuator_force;
 
-    // MuJoCo xquat convention: w, x, y, z
+    // MuJoCo framequat sensor convention: w, x, y, z
     std::array<double, 4> base_quat_wxyz{1.0, 0.0, 0.0, 0.0};
 
     // E2Box firmware에는 host-side에서 최종적으로 받고 싶은 convention으로 넘깁니다.
-    // 현재 skeleton은 free joint qvel angular part를 사용합니다.
-    // 실제 IMU frame 정확도가 필요하면 gyro sensor를 MJCF에 명시하고 sensordata에서
-    // 읽는 방식으로 바꾸는 것을 권장합니다.
+    // gyro는 mujoco.yaml에 명시된 MuJoCo gyro sensor 기준 angular velocity입니다.
     std::array<double, 3> base_gyro_xyz{0.0, 0.0, 0.0};
   };
 
@@ -285,8 +283,14 @@ private:
   void apply_commands_to_mujoco(const mjModel* model, mjData* data);
   void publish_device_feedback(double sim_time);
 
-  void resolve_base_body(const mjModel* model);
-  void resolve_base_free_joint(const mjModel* model);
+  void resolve_base_imu_sensors(const mjModel* model);
+
+  int find_required_sensor_by_name(
+      const mjModel* model,
+      const std::string& sensor_name,
+      int sensor_type,
+      int sensor_dim,
+      const char* label) const;
 
   ImuSample make_imu_sample() const;
 
@@ -318,9 +322,12 @@ private:
   std::vector<VirtualActuatorDevice> actuators_;
   std::vector<VirtualImuDevice> imus_;
 
-  std::string base_body_name_;
-  int base_body_id_ = -1;
-  int base_free_joint_dof_adr_ = -1;
+  std::string imu_quat_sensor_name_;
+  std::string imu_gyro_sensor_name_;
+  int base_quat_sensor_id_ = -1;
+  int base_gyro_sensor_id_ = -1;
+  int base_quat_sensor_adr_ = -1;
+  int base_gyro_sensor_adr_ = -1;
 
   SPGMITConfig spg_mit_config_;
   E2BoxImuFirmwareConfig e2box_imu_config_;

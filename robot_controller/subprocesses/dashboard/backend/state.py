@@ -434,6 +434,7 @@ class MonitorState:
             "enabled_hint": motor.enabled_hint,
             "mit_polling": motor.can_id in self.mit_poll_can_ids,
             "temperature_c": motor.temperature_c,
+            "current_a": motor.iq_a_approx,
             "iq_a_approx": motor.iq_a_approx,
             "speed_dps": motor.speed_dps,
             "position_rad": motor.position_rad,

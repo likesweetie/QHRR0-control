@@ -58,13 +58,14 @@ function render(state) {
   if ($("loadPercent")) renderBus(state);
   if ($("safetyMachine")) renderSafetyMachine(state);
   if ($("robotControllerBadge")) renderImu(state);
+  if ($("policyCommandPanel")) renderCurrentCommand(state.current_command || {});
   if ($("nodeRows")) renderNodes(state.nodes || []);
   if ($("motorRows")) renderMotors(state.motors || [], state.safety || {}, controllerSafetyState(state));
   if ($("enabledMotorCards")) renderEnabledMotorCards(state.motors || []);
   if ($("recentFrames")) renderFrames(state.recent_frames || []);
   if ($("processTiles")) renderProcesses(state.processes || []);
   if ($("shmStatusBadge")) renderShm(state);
-  if ($("armButton") || $("faultClearButton") || $("estopButton")) syncOperatorControls(state);
+  if ($("armButton") || $("runButton") || $("dampingButton") || $("faultClearButton") || $("estopButton")) syncOperatorControls(state);
   syncControls(state);
 }
 
@@ -331,7 +332,7 @@ function renderMotors(motors, safety, controllerState) {
     stateCell.textContent = motor.last_kind;
     row.querySelector('[data-field="age"]').textContent = fmt.age(motor.age_s);
     row.querySelector('[data-field="temperature"]').textContent = fmt.maybe(motor.temperature_c, 0);
-    row.querySelector('[data-field="iq"]').textContent = fmt.maybe(motor.iq_a_approx, 2);
+    row.querySelector('[data-field="iq"]').textContent = fmt.maybe(motor.current_a ?? motor.iq_a_approx, 2);
     row.querySelector('[data-field="speed"]').textContent = fmt.maybe(motor.speed_dps, 0);
     row.querySelector('[data-field="position"]').textContent = fmt.maybe(motor.position_rad, 3);
     row.querySelector('[data-field="raw"]').textContent = motor.raw || "";
@@ -419,10 +420,43 @@ function renderEnabledMotorCards(motors) {
           <div><span>Angle</span><strong>${hasPosition ? `${fmt.maybe(motor.position_rad, 3)} rad` : "-"}</strong></div>
           <div><span>Deg</span><strong>${hasPosition ? `${positionDeg.toFixed(1)} deg` : "-"}</strong></div>
           <div><span>Speed</span><strong>${fmt.maybe(motor.speed_dps, 0)}</strong></div>
+          <div><span>Current</span><strong>${fmt.maybe(motor.current_a ?? motor.iq_a_approx, 2)} A</strong></div>
         </div>
       </article>
     `;
   }).join("");
+}
+
+function renderCurrentCommand(command) {
+  const status = command.status || "waiting";
+  const targets = Array.isArray(command.targets) ? command.targets : [];
+  const source = command.source || "-";
+  $("policyCommandBadge").textContent = status;
+  $("policyCommandBadge").className = badgeClass(status);
+  setText("policyCommandSource", source);
+  setText("policyCommandTargets", String(command.target_count ?? targets.length));
+  setText("policyCommandAge", fmt.age(command.age_s));
+  setText("policyCommandError", command.error || "");
+
+  if (!targets.length) {
+    $("policyCommandRows").innerHTML = `
+      <tr>
+        <td colspan="6">${source === "-" || source === "NONE" ? "-" : `${escapeHtml(source)} command has no MIT target fields`}</td>
+      </tr>
+    `;
+    return;
+  }
+
+  $("policyCommandRows").innerHTML = targets.map((target) => `
+    <tr>
+      <td><code>${escapeHtml(target.can_id || "-")}</code></td>
+      <td>${fmt.maybe(target.p_target_rad ?? target.q, 3)}</td>
+      <td>${fmt.maybe(target.v_target_rad_s ?? target.dq, 3)}</td>
+      <td>${fmt.maybe(target.kp, 2)}</td>
+      <td>${fmt.maybe(target.kd, 2)}</td>
+      <td>${fmt.maybe(target.tau_target_nm ?? target.tau, 3)}</td>
+    </tr>
+  `).join("");
 }
 
 function renderFrames(frames) {
@@ -462,6 +496,25 @@ function renderProcesses(processes) {
     const command = Array.isArray(config.command) ? config.command.join(" ") : "-";
     const terminal = Array.isArray(config.terminal_command) ? config.terminal_command.join(" ") : "-";
     const status = processStatus(process);
+    const manageable = process.manageable !== false;
+    const actionsHtml = manageable ? `
+        <div class="process-actions">
+          <button
+            class="button primary compact"
+            type="button"
+            data-process-action="start"
+            data-process-name="${escapeHtml(process.name || "")}"
+            ${process.alive === true ? "disabled" : ""}
+          >Start</button>
+          <button
+            class="button danger compact"
+            type="button"
+            data-process-action="stop"
+            data-process-name="${escapeHtml(process.name || "")}"
+            ${process.alive === true ? "" : "disabled"}
+          >Stop</button>
+        </div>
+    ` : "";
     return `
       <article class="process-tile">
         <header>
@@ -479,9 +532,45 @@ function renderProcesses(processes) {
         </div>
         <p class="command-line" title="${escapeHtml(command)}">${escapeHtml(command)}</p>
         <p class="command-line" title="${escapeHtml(terminal)}">${escapeHtml(terminal)}</p>
+        ${actionsHtml}
       </article>
     `;
   }).join("");
+}
+
+async function sendProcessAction(button) {
+  if (!button || button.dataset.busy === "true") return;
+  const name = button.dataset.processName;
+  const action = button.dataset.processAction;
+  if (!name || !action) return;
+  if (name === "dashboard" && action === "stop") {
+    const confirmed = window.confirm("Stop dashboard process? This page will disconnect.");
+    if (!confirmed) return;
+  }
+
+  button.dataset.busy = "true";
+  const previousText = button.textContent;
+  button.textContent = action === "stop" ? "Stopping..." : "Starting...";
+  button.disabled = true;
+  try {
+    const result = await postJson(`/api/processes/${encodeURIComponent(name)}/${action}`);
+    showMessage(`${name} ${action} requested`);
+    if (result && Array.isArray(result.processes)) {
+      renderProcesses(result.processes);
+    } else if (name !== "dashboard" || action !== "stop") {
+      const response = await fetch("/api/processes");
+      const data = await response.json();
+      if (data && Array.isArray(data.processes)) {
+        renderProcesses(data.processes);
+      }
+    }
+  } catch (error) {
+    showMessage(error.message, true);
+  } finally {
+    button.dataset.busy = "false";
+    button.textContent = previousText;
+    button.disabled = false;
+  }
 }
 
 function kvHtml(entries) {
@@ -551,6 +640,7 @@ function renderShmActuator(actuator) {
         <div><span>Pos</span><strong>${fmt.maybe(actuator.position_rad, 3)}</strong></div>
         <div><span>Vel</span><strong>${fmt.maybe(actuator.velocity_rad_s, 3)}</strong></div>
         <div><span>Torque</span><strong>${fmt.maybe(actuator.torque_nm, 3)}</strong></div>
+        <div><span>Current</span><strong>${fmt.maybe(actuator.current_a, 2)}</strong></div>
         <div><span>Age</span><strong>${fmt.age(actuator.age_s)}</strong></div>
       </div>
     </article>
@@ -574,10 +664,23 @@ function syncOperatorControls(state) {
       || stateName === "FAULT_LATCHED"
       || stateName === "SHUTTING_DOWN"
       || stateName === "STOPPED"
+      || stateName === "ENABLING"
+      || stateName === "DAMPING"
+      || stateName === "NORMAL"
     );
     const canArm = !armBlocked || operatorEstopDampingActive(state);
     $("armButton").disabled = !canArm;
     $("armButton").title = canArm ? "" : `Arm is blocked while controller is ${stateName}`;
+  }
+  if ($("runButton")) {
+    const canRun = stateName === "DAMPING";
+    $("runButton").disabled = !canRun;
+    $("runButton").title = canRun ? "" : "Run is available only after Arm reaches DAMPING";
+  }
+  if ($("dampingButton")) {
+    const canDamping = stateName === "NORMAL";
+    $("dampingButton").disabled = !canDamping;
+    $("dampingButton").title = canDamping ? "" : "Damping is available only while NORMAL control is running";
   }
   if ($("faultClearButton")) {
     const canClear = stateName === "FAULT_LATCHED" || stateName === "ESTOP";
@@ -778,6 +881,28 @@ function bindControls() {
     });
   }
 
+  if ($("runButton")) {
+    $("runButton").addEventListener("click", async () => {
+      try {
+        await postJson("/api/operator/run");
+        showMessage("Run requested");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+  }
+
+  if ($("dampingButton")) {
+    $("dampingButton").addEventListener("click", async () => {
+      try {
+        await postJson("/api/operator/damping");
+        showMessage("Damping requested");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+  }
+
   if ($("faultClearButton")) {
     $("faultClearButton").addEventListener("click", async () => {
       try {
@@ -818,6 +943,21 @@ function bindControls() {
   if ($("allActuatorToggle")) {
     $("allActuatorToggle").addEventListener("click", () => {
       sendAllActuatorToggle();
+    });
+  }
+
+  if ($("processTiles")) {
+    $("processTiles").addEventListener("pointerdown", (event) => {
+      const button = event.target.closest("[data-process-action]");
+      if (!button) return;
+      event.preventDefault();
+      sendProcessAction(button);
+    });
+
+    $("processTiles").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-process-action]");
+      if (!button || event.detail !== 0) return;
+      sendProcessAction(button);
     });
   }
 

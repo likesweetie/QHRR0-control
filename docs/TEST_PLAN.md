@@ -40,7 +40,8 @@ Covered by `tests/test_state_machine.py`.
 | --- | --- |
 | startup | `DISABLED` |
 | `ENABLE` | `ENABLING` |
-| elapsed `enable_duration_s` | `NORMAL` |
+| elapsed `enable_duration_s` | `DAMPING` |
+| `RUN` from `DAMPING` | `NORMAL` |
 | `DAMPING` | `DAMPING` |
 | `ZERO_SET` | `ZERO_SETTING` |
 | `ESTOP` | `ESTOP`, latched |
@@ -52,7 +53,7 @@ Covered by `tests/test_control_command_shm.py` and `tests/test_robot_state_shm.p
 
 | SHM | Expected |
 | --- | --- |
-| `ControlCommandShm` | ctypes struct read/write, no seqlock requirement |
+| `ControlCommandShm` | ctypes struct read/write |
 | `RobotStateShm` | telemetry dict conversion works |
 | `OperatorCommandShm` | command code can be published/read |
 

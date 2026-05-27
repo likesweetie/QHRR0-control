@@ -1,0 +1,44 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260527_124942/task_controller.log
+[task_controller] loaded policy qhrr: /home/kale/QHRR_control/policy/qhrr/qhrr/policy.onnx
+[task_controller] control=qhrr_control_state aux=qhrr_aux_command control_cmd=qhrr_mit_command
+[task_controller] target_policy_output_hz=50.000 rate_log_interval_s=1.0
+[task_controller] waiting for control_state
+[task_controller] control_state received
+[task_controller] policy_output_rate_hz=50.85 published=51 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.87 published=101 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=151 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=201 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=251 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=301 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=351 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=401 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=451 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=501 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=551 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=601 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=651 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=701 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.84 published=751 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.87 published=801 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=851 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=901 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=951 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1001 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1051 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1101 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.87 published=1151 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1201 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1251 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1301 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1351 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1401 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1451 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1501 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1551 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1601 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1651 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1701 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1751 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.86 published=1801 target_hz=50.00
+[task_controller] policy_output_rate_hz=49.85 published=1851 target_hz=50.00
+[task_controller] signal 15, shutting down

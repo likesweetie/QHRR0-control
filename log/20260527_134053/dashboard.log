@@ -1,0 +1,18 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260527_134053/dashboard.log
+INFO:     Started server process [209767]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:33590 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33590 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33604 - "GET /static/app.js?v=20260527-applied-command HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33604 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33620 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:33604 - "POST /api/operator/arm HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33604 - "POST /api/operator/run HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [209767]

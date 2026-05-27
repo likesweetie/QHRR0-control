@@ -288,8 +288,7 @@ void MujocoCanBridge::reset_model(const mjModel* model, mjData* data) {
   state_.ctrl.assign(model->nu, 0.0);
   state_.actuator_force.assign(model->nu, 0.0);
 
-  resolve_base_body(model);
-  resolve_base_free_joint(model);
+  resolve_base_imu_sensors(model);
 
   build_default_actuator_bindings(model);
   command_buffer_.actuator_commands.resize(actuator_bindings_.size());
@@ -314,8 +313,10 @@ void MujocoCanBridge::reset_model(const mjModel* model, mjData* data) {
             << " nu=" << state_.nu
             << " nbody=" << state_.nbody << "\n"
             << "  actuator_bindings=" << actuator_bindings_.size() << "\n"
-            << "  base_body_id=" << base_body_id_
-            << " base_free_joint_dof_adr=" << base_free_joint_dof_adr_
+            << "  imu_quat_sensor=" << imu_quat_sensor_name_
+            << " imu_gyro_sensor=" << imu_gyro_sensor_name_
+            << " base_quat_sensor_id=" << base_quat_sensor_id_
+            << " base_gyro_sensor_id=" << base_gyro_sensor_id_
             << "\n";
 }
 
@@ -387,8 +388,11 @@ std::size_t MujocoCanBridge::device_frame_count() const {
   return bus_.device_frame_count();
 }
 
-void MujocoCanBridge::set_base_body_name(const std::string& body_name) {
-  base_body_name_ = body_name;
+void MujocoCanBridge::set_imu_sensor_names(
+    const std::string& quat_sensor_name,
+    const std::string& gyro_sensor_name) {
+  imu_quat_sensor_name_ = quat_sensor_name;
+  imu_gyro_sensor_name_ = gyro_sensor_name;
 }
 
 void MujocoCanBridge::set_spg_mit_config(const SPGMITConfig& config) {
@@ -633,30 +637,22 @@ void MujocoCanBridge::update_state_buffer(
       data->actuator_force,
       data->actuator_force + model->nu);
 
-  if (base_body_id_ >= 0 && base_body_id_ < model->nbody) {
-    const int qadr = 4 * base_body_id_;
-
-    state_.base_quat_wxyz[0] = data->xquat[qadr + 0];
-    state_.base_quat_wxyz[1] = data->xquat[qadr + 1];
-    state_.base_quat_wxyz[2] = data->xquat[qadr + 2];
-    state_.base_quat_wxyz[3] = data->xquat[qadr + 3];
-  } else {
-    state_.base_quat_wxyz = {1.0, 0.0, 0.0, 0.0};
+  if (base_quat_sensor_adr_ < 0 ||
+      base_quat_sensor_adr_ + 3 >= model->nsensordata ||
+      base_gyro_sensor_adr_ < 0 ||
+      base_gyro_sensor_adr_ + 2 >= model->nsensordata) {
+    throw std::runtime_error(
+        "[MujocoCanBridge] required base IMU sensors are not resolved");
   }
 
-  if (base_free_joint_dof_adr_ >= 0 &&
-      base_free_joint_dof_adr_ + 5 < model->nv) {
-    // free joint qvel layout:
-    //   [vx, vy, vz, wx, wy, wz] 계열로 사용하는 skeleton입니다.
-    //
-    // 실제 IMU body-frame gyro convention을 엄밀히 맞추려면 MJCF gyro sensor를
-    // 추가하고 sensordata에서 읽는 방식으로 교체하십시오.
-    state_.base_gyro_xyz[0] = data->qvel[base_free_joint_dof_adr_ + 3];
-    state_.base_gyro_xyz[1] = data->qvel[base_free_joint_dof_adr_ + 4];
-    state_.base_gyro_xyz[2] = data->qvel[base_free_joint_dof_adr_ + 5];
-  } else {
-    state_.base_gyro_xyz = {0.0, 0.0, 0.0};
-  }
+  state_.base_quat_wxyz[0] = data->sensordata[base_quat_sensor_adr_ + 0];
+  state_.base_quat_wxyz[1] = data->sensordata[base_quat_sensor_adr_ + 1];
+  state_.base_quat_wxyz[2] = data->sensordata[base_quat_sensor_adr_ + 2];
+  state_.base_quat_wxyz[3] = data->sensordata[base_quat_sensor_adr_ + 3];
+
+  state_.base_gyro_xyz[0] = data->sensordata[base_gyro_sensor_adr_ + 0];
+  state_.base_gyro_xyz[1] = data->sensordata[base_gyro_sensor_adr_ + 1];
+  state_.base_gyro_xyz[2] = data->sensordata[base_gyro_sensor_adr_ + 2];
 }
 
 void MujocoCanBridge::process_host_frames(double sim_time) {
@@ -771,54 +767,65 @@ void MujocoCanBridge::publish_device_feedback(double sim_time) {
   // IMU request frame이 들어오면 process_host_frames()에서 즉시 응답합니다.
 }
 
-void MujocoCanBridge::resolve_base_body(const mjModel* model) {
-  base_body_id_ = -1;
-
+void MujocoCanBridge::resolve_base_imu_sensors(const mjModel* model) {
   if (model == nullptr) {
-    return;
+    throw std::runtime_error("[MujocoCanBridge] cannot resolve IMU sensors without model");
   }
 
-  if (!base_body_name_.empty()) {
-    const int id =
-        mj_name2id(model, mjOBJ_BODY, base_body_name_.c_str());
+  base_quat_sensor_id_ = find_required_sensor_by_name(
+      model,
+      imu_quat_sensor_name_,
+      mjSENS_FRAMEQUAT,
+      4,
+      "framequat");
+  base_gyro_sensor_id_ = find_required_sensor_by_name(
+      model,
+      imu_gyro_sensor_name_,
+      mjSENS_GYRO,
+      3,
+      "gyro");
 
-    if (id >= 0) {
-      base_body_id_ = id;
-      return;
-    }
-
-    std::cerr << "[MujocoCanBridge] base body not found: "
-              << base_body_name_ << "\n";
-  }
-
-  // world body는 0입니다. 대부분 floating-base robot은 1번 body가 base인 경우가
-  // 많지만, 모델마다 다를 수 있으므로 set_base_body_name() 사용을 권장합니다.
-  if (model->nbody > 1) {
-    base_body_id_ = 1;
-  } else {
-    base_body_id_ = 0;
-  }
+  base_quat_sensor_adr_ = model->sensor_adr[base_quat_sensor_id_];
+  base_gyro_sensor_adr_ = model->sensor_adr[base_gyro_sensor_id_];
 }
 
-void MujocoCanBridge::resolve_base_free_joint(const mjModel* model) {
-  base_free_joint_dof_adr_ = -1;
-
-  if (model == nullptr || base_body_id_ < 0) {
-    return;
+int MujocoCanBridge::find_required_sensor_by_name(
+    const mjModel* model,
+    const std::string& sensor_name,
+    int sensor_type,
+    int sensor_dim,
+    const char* label) const {
+  if (model == nullptr) {
+    throw std::runtime_error("[MujocoCanBridge] sensor lookup requires model");
   }
 
-  for (int joint_id = 0; joint_id < model->njnt; ++joint_id) {
-    if (model->jnt_bodyid[joint_id] != base_body_id_) {
-      continue;
-    }
-
-    if (model->jnt_type[joint_id] != mjJNT_FREE) {
-      continue;
-    }
-
-    base_free_joint_dof_adr_ = model->jnt_dofadr[joint_id];
-    return;
+  if (sensor_name.empty()) {
+    throw std::runtime_error(
+        std::string("[MujocoCanBridge] missing required ") + label +
+        " sensor name");
   }
+
+  const int sensor_id =
+      mj_name2id(model, mjOBJ_SENSOR, sensor_name.c_str());
+  if (sensor_id < 0) {
+    throw std::runtime_error(
+        std::string("[MujocoCanBridge] missing required ") + label +
+        " sensor: " + sensor_name);
+  }
+
+  if (model->sensor_type[sensor_id] != sensor_type) {
+    throw std::runtime_error(
+        std::string("[MujocoCanBridge] sensor '") + sensor_name +
+        "' is not a " + label + " sensor");
+  }
+
+  if (model->sensor_dim[sensor_id] != sensor_dim) {
+    throw std::runtime_error(
+        std::string("[MujocoCanBridge] sensor '") + sensor_name +
+        "' has invalid dimension for " + label);
+  }
+
+  return sensor_id;
 }
 
 ImuSample MujocoCanBridge::make_imu_sample() const {

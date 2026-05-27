@@ -52,7 +52,7 @@ Hardware mode startup validation:
 | `hardware.allow_enable_on_start` | hardware mode에서 `false`여야 함 |
 | `can.motors.enter_on_start` | hardware mode에서 금지 |
 
-Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor enable command를 보내지 않습니다. Arm/enable은 dashboard 또는 다른 operator process가 `OperatorCommandShm`에 `ENABLE` command를 쓴 뒤 `RobotController` 상태 머신이 처리합니다.
+Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor enable command를 보내지 않습니다. Arm/enable은 dashboard 또는 다른 operator process가 `OperatorCommandShm`에 `ENABLE` command를 쓴 뒤 `RobotController` 상태 머신이 처리합니다. Arm은 motor enable 후 `DAMPING`으로만 들어가며, policy command 송신은 별도 `RUN` command가 있어야 시작됩니다.
 
 ## Project Layout
 
@@ -90,6 +90,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 
 - `RobotController.tick()`는 operator command를 읽고 상태 머신을 업데이트한 뒤, 현재 `ControllerMode`별로 정확히 하나의 actuator output path만 실행합니다.
 - `ENABLING` 상태에서는 enable command만 송신하며, policy/damping/zero/disable command를 섞지 않습니다.
+- Arm 이후에는 `DAMPING` 상태로 머물며, dashboard `Run` 버튼이 `RUN` command를 보낼 때만 `NORMAL`로 전환됩니다.
 - `NORMAL` 상태에서만 `ControlCommandShm.read_relaxed()`를 호출하고 policy MIT command를 송신합니다.
 - 여러 actuator 대상 enable/disable/zero/damping/policy 송신은 `RobotController` private method의 단순 for-loop에서 직접 보입니다.
 - `ControlCommandShm`은 ctypes C-compatible layout이며 motor command tearing을 의도적으로 허용합니다.

@@ -1,29 +1,30 @@
 # Safety Notes
 
-현재 runtime은 단일 `SafetyController`가 아니라 `ControllerStateMachine`과 `RobotController.tick()`의 상태별 output rule로 actuator output을 제한한다.
+현재 runtime은 `ControllerStateMachine`과 `RobotController.tick()`의 상태별 output rule로 actuator output을 제한한다.
 
 ## Controller Modes
 
 | Mode | Entry condition | Output |
 | --- | --- | --- |
 | `DISABLED` | startup, `DISABLE`, `RESET_FAULT` from `ESTOP` | disable all only |
-| `ENABLING` | `ENABLE` from `DISABLED`, `DAMPING`, or `ZERO_SETTING` | enable all only |
-| `NORMAL` | `ENABLING` duration elapsed | policy command only |
-| `DAMPING` | `DAMPING` operator command | damping-like MIT command only |
-| `ZERO_SETTING` | `ZERO_SET` operator command | zero set all only |
+| `ENABLING` | `ENABLE` from `DISABLED` or `ZERO_SETTING` | enable all only |
+| `DAMPING` | `ENABLING` duration elapsed, or `DAMPING` operator command | damping-like MIT command only |
+| `NORMAL` | `RUN` from `DAMPING` | policy command only |
+| `ZERO_SETTING` | `ZERO_SET` operator command | zero set all only; `NONE` returns to `DISABLED` |
 | `ESTOP` | `ESTOP` operator command | disable all only, latched |
 
 ```mermaid
 stateDiagram-v2
     [*] --> DISABLED
     DISABLED --> ENABLING: ENABLE
-    ENABLING --> NORMAL: enable_duration_s elapsed
+    ENABLING --> DAMPING: enable_duration_s elapsed
+    DAMPING --> NORMAL: RUN
     NORMAL --> DAMPING: DAMPING
     NORMAL --> DISABLED: DISABLE
     NORMAL --> ZERO_SETTING: ZERO_SET
     NORMAL --> ESTOP: ESTOP
-    DAMPING --> ENABLING: ENABLE
     ZERO_SETTING --> ENABLING: ENABLE
+    ZERO_SETTING --> DISABLED: NONE
     ESTOP --> DISABLED: RESET_FAULT
 ```
 

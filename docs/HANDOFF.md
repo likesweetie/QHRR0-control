@@ -48,6 +48,8 @@ flowchart LR
 | Operator control | operator writes `OperatorCommandShm`; controller transitions state |
 | Telemetry | `ShmStatePublisher` and `DashboardPublisher` are separate |
 
+Arm and run are intentionally split: `ENABLE` moves through `ENABLING` into `DAMPING`, and only `RUN` moves `DAMPING` into `NORMAL` policy output.
+
 ## Real Robot Checklist
 
 - Confirm `runtime.mode: hardware`.
@@ -66,7 +68,7 @@ python3 -m robot_controller.main \
 
 ## Important Warnings
 
-1. `ControllerMode.NORMAL` sends whatever relaxed policy command is currently in `ControlCommandShm`.
+1. `ControllerMode.NORMAL` sends whatever relaxed policy command is currently in `ControlCommandShm`; do not enter `NORMAL` unless policy output is intended.
 2. Unknown CAN IDs in policy command are skipped by current code; review before real hardware deployment.
 3. `safety.command_loss_action`, `safety.feedback_stale_action`, and `safety.damping_timeout_s` are parsed but not enforced by current `tick()`.
 4. The damping output is MIT damping-like command, not independently proven hardware-safe behavior.

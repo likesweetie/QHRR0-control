@@ -1,6 +1,6 @@
 from .core.config import RobotControllerConfig, load_robot_controller_config
-from .robot_controller import RobotController
 from .core.state import RobotControllerState
+from .controller import RobotController
 
 __all__ = [
     "RobotController",

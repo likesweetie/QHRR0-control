@@ -1,0 +1,88 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260526_142408/dashboard.log
+INFO:     Started server process [136194]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57854 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET /static/app.js?v=20260526-arm-run-split HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42686 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:57868 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:57868 - "GET /static/app.js?v=20260526-arm-run-split HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57868 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42702 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:42694 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48198 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:42694 - "GET /static/app.js?v=20260526-arm-run-split HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:42694 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:48214 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:48194 - "GET /static/app.js?v=20260526-arm-run-split HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48194 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52502 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:48194 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33946 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:48194 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:33950 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:52486 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:49024 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:52486 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49034 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:52486 - "GET /processes HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:52486 - "GET /static/app.js?v=20260526-process-actions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52486 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49050 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:52486 - "GET /processes HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:52486 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49058 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:52486 - "GET /processes HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:52486 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49060 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:52486 - "GET /processes HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:52486 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49076 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:49010 - "GET /processes HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:49010 - "GET /static/app.js?v=20260526-process-actions HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49010 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60392 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:49010 - "GET /processes HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:49010 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60398 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [136194]

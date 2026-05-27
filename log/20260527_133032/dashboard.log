@@ -1,0 +1,40 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260527_133032/dashboard.log
+INFO:     Started server process [207182]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52336 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:52338 - "POST /api/operator/arm HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39654 - "POST /api/operator/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41032 - "GET /shm HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41032 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41032 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41032 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:41032 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:41048 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:41032 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41032 - "GET /static/app.js?v=20260527-current-command HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:41032 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41064 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:41038 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:41038 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48092 - "GET /static/app.js?v=20260527-current-command HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48092 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48106 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:48092 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:48092 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48116 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [207182]

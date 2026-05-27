@@ -81,7 +81,8 @@ struct VirtualCanConfig {
   bool socketcan_enabled = true;
   std::string socketcan_interface = "vcan0";
 
-  std::string base_body_name = "base";
+  std::string imu_quat_sensor_name = "";
+  std::string imu_gyro_sensor_name = "";
 
   mjcan::SPGMITConfig spg_mit_config;
   mjcan::E2BoxImuFirmwareConfig e2box_imu_config;
@@ -398,8 +399,19 @@ VirtualCanConfig load_virtual_can_config_from_fixed_path() {
   config.enabled =
       yaml_require<bool>(can, "enabled");
 
-  config.base_body_name =
-      yaml_require<std::string>(can, "base_body_name");
+  const YAML::Node imu_sensors = can["imu_sensors"];
+  if (!imu_sensors || !imu_sensors.IsMap()) {
+    throw std::runtime_error("Missing required YAML section: mujoco_can.imu_sensors");
+  }
+  config.imu_quat_sensor_name =
+      yaml_require<std::string>(imu_sensors, "quat_sensor_name");
+  config.imu_gyro_sensor_name =
+      yaml_require<std::string>(imu_sensors, "gyro_sensor_name");
+  if (config.imu_quat_sensor_name.empty() ||
+      config.imu_gyro_sensor_name.empty()) {
+    throw std::runtime_error(
+        "mujoco_can.imu_sensors quat_sensor_name and gyro_sensor_name must not be empty");
+  }
 
   const YAML::Node socketcan = can["socketcan"];
   if (!socketcan) {
@@ -433,13 +445,15 @@ VirtualCanConfig load_virtual_can_config_from_fixed_path() {
       "[main]   enabled=%s\n"
       "[main]   socketcan.enabled=%s\n"
       "[main]   socketcan.interface=%s\n"
-      "[main]   base_body=%s\n"
+      "[main]   imu.quat_sensor=%s\n"
+      "[main]   imu.gyro_sensor=%s\n"
       "[main]   actuators=%zu\n"
       "[main]   imus=%zu\n",
       config.enabled ? "true" : "false",
       config.socketcan_enabled ? "true" : "false",
       config.socketcan_interface.c_str(),
-      config.base_body_name.c_str(),
+      config.imu_quat_sensor_name.c_str(),
+      config.imu_gyro_sensor_name.c_str(),
       config.device_config.actuators.size(),
       config.device_config.imus.size());
 
@@ -458,13 +472,13 @@ void initialize_virtual_can(const VirtualCanConfig& config) {
   g_can_bridge->set_spg_mit_config(config.spg_mit_config);
   g_can_bridge->set_e2box_imu_config(config.e2box_imu_config);
   g_can_bridge->set_device_config(config.device_config);
-
-  if (!config.base_body_name.empty()) {
-    g_can_bridge->set_base_body_name(config.base_body_name);
-    std::printf(
-        "[main] MuJoCo CAN base body: %s\n",
-        config.base_body_name.c_str());
-  }
+  g_can_bridge->set_imu_sensor_names(
+      config.imu_quat_sensor_name,
+      config.imu_gyro_sensor_name);
+  std::printf(
+      "[main] MuJoCo CAN IMU sensors: quat=%s gyro=%s\n",
+      config.imu_quat_sensor_name.c_str(),
+      config.imu_gyro_sensor_name.c_str());
 
   if (!config.socketcan_enabled) {
     std::printf("[main] SocketCAN adapter disabled by config.\n");

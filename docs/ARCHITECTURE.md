@@ -1,6 +1,6 @@
 # Architecture
 
-이 문서는 현재 Python runtime 구조 기준이다. 과거 `RobotControlLoop`, `SafetyController`, `RobotHardware`, `MotorBus` 중심 구조는 제거되었다.
+이 문서는 현재 Python runtime 구조 기준이다. `RobotController`가 상태 머신과 HAL 호출 순서를 직접 소유한다.
 
 ## Directory Layout
 
@@ -86,5 +86,5 @@ Startup safety validation is in `robot_controller/config/validate_hardware_safet
 
 ```bash
 rg -n "qhrr0_hw|QHRR0|SPG|DongilC|E2BOX|joint|calibration" hal -g '*.py'
-rg -n "RobotControlLoop|SafetyController|RobotHardware|MotorBus|ActuatorGroup" robot_controller -g '*.py'
+find robot_controller -maxdepth 2 -type d | sort
 ```

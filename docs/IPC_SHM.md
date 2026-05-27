@@ -1,6 +1,6 @@
 # IPC / Shared Memory
 
-SHM is implemented as thin ctypes C-compatible views in `robot_controller/shm/`. JSON payload SHM, seqlock, sequence counter, and command generation are not used.
+SHM is implemented as thin ctypes C-compatible views in `robot_controller/shm/`. JSON payload SHM and consistency counters are not used.
 
 ## Segments
 
@@ -51,7 +51,7 @@ class OperatorCommandC(ctypes.Structure):
     ]
 ```
 
-`command` uses `OperatorCommandCode`: `NONE`, `ENABLE`, `DISABLE`, `DAMPING`, `ZERO_SET`, `ESTOP`, `RESET_FAULT`.
+`command` uses `OperatorCommandCode`: `NONE`, `ENABLE`, `DISABLE`, `DAMPING`, `ZERO_SET`, `ESTOP`, `RESET_FAULT`, `RUN`.
 
 ## RobotStateShm
 

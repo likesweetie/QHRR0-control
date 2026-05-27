@@ -119,6 +119,9 @@ class DashboardRobotStateReader:
         ]
         base["motors"] = motors
         base["nodes"] = self._nodes_from_control_state(base["nodes"], motors)
+        command_output = robot_state.get("command_output")
+        if isinstance(command_output, dict):
+            base["current_command"] = command_output
 
     def _merge_dashboard_state(self, base: dict[str, Any], robot_state: dict[str, Any]) -> None:
         base["processes"] = self._processes_snapshot(robot_state.get("processes", {}))
@@ -134,6 +137,12 @@ class DashboardRobotStateReader:
         status = self._control_status(item, age_s)
         existing = self.state.motors.get(can_id)
         velocity_rad_s = item.get("velocity_rad_s")
+        current_a = item.get("current_a")
+        if current_a is None and existing is not None:
+            current_a = existing.iq_a_approx
+        temperature_c = item.get("temperature_c")
+        if temperature_c is None and existing is not None:
+            temperature_c = existing.temperature_c
         return {
             "name": self._actuator_name(can_id),
             "can_id": hex_id(can_id),
@@ -143,8 +152,9 @@ class DashboardRobotStateReader:
             "last_kind": self._control_mode(item, age_s),
             "enabled_hint": item.get("is_enabled"),
             "mit_polling": can_id in self.state.mit_poll_can_ids,
-            "temperature_c": None,
-            "iq_a_approx": item.get("current_a"),
+            "temperature_c": temperature_c,
+            "current_a": current_a,
+            "iq_a_approx": current_a,
             "speed_dps": self._rad_s_to_deg_s(velocity_rad_s),
             "position_rad": item.get("position_rad"),
             "raw": self._control_summary(item),
@@ -281,6 +291,8 @@ class DashboardRobotStateReader:
             parts.append(f"qd={float(item['velocity_rad_s']):.3f}rad/s")
         if item.get("torque_nm") is not None:
             parts.append(f"tau={float(item['torque_nm']):.3f}Nm")
+        if item.get("current_a") is not None:
+            parts.append(f"i={float(item['current_a']):.2f}A")
         fault_code = item.get("fault_code")
         if fault_code not in (None, 0):
             parts.append(f"fault={fault_code}")

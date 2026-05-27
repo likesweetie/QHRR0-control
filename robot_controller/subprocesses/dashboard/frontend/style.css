@@ -124,8 +124,9 @@ select {
   grid-template-columns: minmax(280px, 1fr) minmax(320px, 0.9fr);
   grid-template-areas:
     "machine machine"
+    "policy-command policy-command"
     "bus command"
-    "imu command"
+    "imu imu"
     "motors motors"
     "nodes nodes"
     "frames frames";
@@ -153,6 +154,10 @@ select {
 
 .command-panel {
   grid-area: command;
+}
+
+.policy-command-panel {
+  grid-area: policy-command;
 }
 
 .machine-panel {
@@ -217,6 +222,13 @@ select {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.process-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .process-meta div,
@@ -1013,6 +1025,10 @@ label input {
   overflow-x: auto;
 }
 
+.compact-table {
+  margin-top: 12px;
+}
+
 table {
   width: 100%;
   min-width: 860px;
@@ -1122,6 +1138,7 @@ td code,
     grid-template-columns: 1fr;
     grid-template-areas:
       "machine"
+      "policy-command"
       "bus"
       "command"
       "imu"
@@ -1176,6 +1193,7 @@ td code,
   .control-row,
   .shm-sections,
   .process-meta,
+  .process-actions,
   .key-value-grid {
     grid-template-columns: 1fr;
   }

@@ -1,0 +1,46 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260526_140922/dashboard.log
+INFO:     Started server process [132078]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:36334 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:36336 - "POST /api/operator/arm HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32906 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:32906 - "GET /static/app.js?v=20260526-arm-run-split HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32906 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32906 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:32924 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:32916 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:32916 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36528 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:32916 - "POST /api/tx/unlock HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32916 - "POST /api/operator/damping HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:32916 - "POST /api/operator/estop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32916 - "POST /api/operator/fault-clear HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36518 - "POST /api/operator/estop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50876 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:50876 - "GET /static/app.js?v=20260526-arm-run-split HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:50876 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50894 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:50876 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:50876 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50900 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:50876 - "GET / HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:50876 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50914 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [132078]

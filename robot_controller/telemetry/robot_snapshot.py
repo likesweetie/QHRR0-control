@@ -35,10 +35,27 @@ class ImuSnapshot:
 
 
 @dataclass(frozen=True)
+class CommandTargetSnapshot:
+    can_id: int
+    p_target_rad: float
+    v_target_rad_s: float
+    kp: float
+    kd: float
+    tau_target_nm: float
+
+
+@dataclass(frozen=True)
+class CommandOutputSnapshot:
+    source: str
+    timestamp_monotonic: float
+    targets: tuple[CommandTargetSnapshot, ...]
+
+
+@dataclass(frozen=True)
 class RobotSnapshot:
     mode: ControllerMode
     timestamp_monotonic: float
     timestamp_unix: float
     actuators: tuple[ActuatorSnapshot, ...]
     imu: ImuSnapshot
-
+    command_output: CommandOutputSnapshot

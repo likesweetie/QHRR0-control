@@ -87,6 +87,10 @@ class _ProcessSupervisorBase:
         if managed_pid is not None:
             self._wait_pid_exit(managed_pid, deadline)
         if process is None:
+            if managed_pid is not None and self._pid_is_running(managed_pid):
+                logger.warning("Killing managed process %s after stop timeout %.3fs", name, timeout_s)
+                self._terminate_pid(managed_pid, signal.SIGKILL)
+                self._wait_pid_exit(managed_pid, time.monotonic() + timeout_s)
             self._cleanup_pidfile(pidfile)
             return
 

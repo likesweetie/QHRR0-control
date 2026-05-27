@@ -7,6 +7,18 @@ from typing import Any
 
 
 MAX_ROBOT_STATE_ACTUATORS = 12
+COMMAND_OUTPUT_SOURCE_NAMES = {
+    0: "NONE",
+    1: "ENABLE",
+    2: "DISABLE",
+    3: "ZERO_SET",
+    4: "DAMPING",
+    5: "POLICY",
+}
+COMMAND_OUTPUT_SOURCE_VALUES = {
+    name: value
+    for value, name in COMMAND_OUTPUT_SOURCE_NAMES.items()
+}
 
 
 class ActuatorStateC(ctypes.Structure):
@@ -43,6 +55,28 @@ class ImuStateC(ctypes.Structure):
     ]
 
 
+class CommandTargetStateC(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("can_id", ctypes.c_uint32),
+        ("p_target_rad", ctypes.c_float),
+        ("v_target_rad_s", ctypes.c_float),
+        ("kp", ctypes.c_float),
+        ("kd", ctypes.c_float),
+        ("tau_target_nm", ctypes.c_float),
+    ]
+
+
+class CommandOutputStateC(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("timestamp_monotonic", ctypes.c_double),
+        ("source", ctypes.c_uint32),
+        ("target_count", ctypes.c_uint32),
+        ("targets", CommandTargetStateC * MAX_ROBOT_STATE_ACTUATORS),
+    ]
+
+
 class RobotStateC(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
@@ -53,6 +87,7 @@ class RobotStateC(ctypes.Structure):
         ("actuator_count", ctypes.c_uint32),
         ("imu", ImuStateC),
         ("actuators", ActuatorStateC * MAX_ROBOT_STATE_ACTUATORS),
+        ("command_output", CommandOutputStateC),
     ]
 
 
@@ -118,6 +153,7 @@ def robot_state_to_dict(state: RobotStateC) -> dict[str, Any]:
     mode_name = _mode_name(int(state.controller_mode))
     actuator_count = min(int(state.actuator_count), MAX_ROBOT_STATE_ACTUATORS)
     imu = state.imu
+    command_output = state.command_output
     return {
         "schema": "qhrr.robot_state.cstruct.v1",
         "timestamp_monotonic": float(state.timestamp_monotonic),
@@ -138,6 +174,7 @@ def robot_state_to_dict(state: RobotStateC) -> dict[str, Any]:
             _actuator_to_dict(item)
             for item in state.actuators[:actuator_count]
         ],
+        "command_output": _command_output_to_dict(command_output),
     }
 
 
@@ -156,6 +193,38 @@ def _actuator_to_dict(item: ActuatorStateC) -> dict[str, Any]:
         "age_s": None if float(item.age_s) < 0.0 else float(item.age_s),
         "online": bool(item.online),
         "stale": bool(item.stale),
+    }
+
+
+def _command_output_to_dict(item: CommandOutputStateC) -> dict[str, Any]:
+    target_count = min(int(item.target_count), MAX_ROBOT_STATE_ACTUATORS)
+    timestamp_monotonic = float(item.timestamp_monotonic)
+    age_s = None
+    if timestamp_monotonic > 0.0:
+        age_s = max(0.0, time.monotonic() - timestamp_monotonic)
+    return {
+        "status": "online" if timestamp_monotonic > 0.0 else "waiting",
+        "source": COMMAND_OUTPUT_SOURCE_NAMES.get(int(item.source), f"SOURCE_{int(item.source)}"),
+        "timestamp_monotonic": timestamp_monotonic,
+        "age_s": age_s,
+        "target_count": target_count,
+        "targets": [
+            _command_target_to_dict(target)
+            for target in item.targets[:target_count]
+        ],
+        "error": None,
+    }
+
+
+def _command_target_to_dict(item: CommandTargetStateC) -> dict[str, Any]:
+    can_id = int(item.can_id)
+    return {
+        "can_id": f"0x{can_id:X}",
+        "p_target_rad": float(item.p_target_rad),
+        "v_target_rad_s": float(item.v_target_rad_s),
+        "kp": float(item.kp),
+        "kd": float(item.kd),
+        "tau_target_nm": float(item.tau_target_nm),
     }
 
 
