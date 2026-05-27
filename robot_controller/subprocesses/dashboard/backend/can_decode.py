@@ -95,6 +95,8 @@ def decode_spg_status(
     temp_c = struct.unpack("<b", data[1:2])[0]
     iq_count = struct.unpack("<h", data[2:4])[0]
     speed_dps = struct.unpack("<h", data[4:6])[0]
+    # OpenRobot v14 0xC0 exception: DATA[6:7] is signed MIT feedback
+    # position in output-side zero coordinates, not a 14-bit encoder count.
     position_i16 = struct.unpack("<h", data[6:8])[0]
 
     return {

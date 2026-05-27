@@ -109,11 +109,11 @@ class SPGMITConfig:
 
 
 @dataclass(frozen=True)
-class SPGMotorStatus:
+class SPGMITStatus:
     temp_c: int
     iq_counts: int
     speed_dps: int
-    position_i16: int
+    mit_position_i16: int
 
 
 @dataclass(frozen=True)
@@ -407,10 +407,7 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
     # ------------------------------------------------------------------
 
     def _decode_mit_status(self, payload8: bytes) -> ActuatorState:
-        status = self._parse_status_common(
-            payload8=payload8,
-            expected_cmd=self.CMD_MIT_CONTROL,
-        )
+        status = self._parse_mit_status_v14(payload8)
 
         velocity_rad_s = math.radians(status.speed_dps)
 
@@ -418,7 +415,7 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
             velocity_rad_s /= self.gear_ratio
 
         position_output_rad = (
-            status.position_i16
+            status.mit_position_i16
             / 32767.0
             * self.mit_config.feedback_position_max
         )
@@ -450,9 +447,11 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
                 "cmd": self.CMD_MIT_CONTROL,
                 "iq_counts": status.iq_counts,
                 "speed_dps": status.speed_dps,
-                "position_i16": status.position_i16,
+                "position_i16": status.mit_position_i16,
+                "mit_position_i16": status.mit_position_i16,
                 "feedback_position_max_rad": self.mit_config.feedback_position_max,
                 "position_output_rad": position_output_rad,
+                "mit_position_rad": position_output_rad,
             },
         )
 
@@ -564,20 +563,20 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         return None
 
     @staticmethod
-    def _parse_status_common(payload8: bytes, expected_cmd: int) -> SPGMotorStatus:
-        if len(payload8) != 8 or payload8[0] != expected_cmd:
-            raise ValueError("Invalid SPG status response")
+    def _parse_mit_status_v14(payload8: bytes) -> SPGMITStatus:
+        if len(payload8) != 8 or payload8[0] != SPGActuatorProtocol.CMD_MIT_CONTROL:
+            raise ValueError("Invalid SPG MIT v14 status response")
 
         temp_c = struct.unpack("b", payload8[1:2])[0]
         iq_counts = struct.unpack("<h", payload8[2:4])[0]
         speed_dps = struct.unpack("<h", payload8[4:6])[0]
-        position_i16 = struct.unpack("<h", payload8[6:8])[0]
+        mit_position_i16 = struct.unpack("<h", payload8[6:8])[0]
 
-        return SPGMotorStatus(
+        return SPGMITStatus(
             temp_c=temp_c,
             iq_counts=iq_counts,
             speed_dps=speed_dps,
-            position_i16=position_i16,
+            mit_position_i16=mit_position_i16,
         )
 
     @staticmethod

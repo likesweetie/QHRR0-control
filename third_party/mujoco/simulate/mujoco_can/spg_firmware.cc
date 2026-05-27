@@ -51,6 +51,8 @@ void SPGFirmware::reset(double sim_time) {
   mit_zero_reference_rad_ = 0.0;
   zero_capture_pending_ = false;
   requested_zero_offset_rad_ = 0.0;
+  has_mit_user_zero_set_ = false;
+  has_auto_mit_zero_captured_ = false;
 
   ignore_control_until_time_ = sim_time;
 }
@@ -174,9 +176,14 @@ void SPGFirmware::handle_mit_control(
 void SPGFirmware::handle_enter_motor_mode(double sim_time) {
   enabled_ = true;
 
-  // MIT enter는 zero reference를 바꾸지 않습니다.
-  // 초기 feedback angle은 MuJoCo qpos에서 YAML sign/offset을 적용한 logical
-  // joint angle과 같아야 합니다. Zero reference 변경은 0xC3 Set Zero만 담당합니다.
+  // OpenRobot v14: RMD 제어 모드에서 MIT 모드로 최초 진입할 때 현재 위치를
+  // 자동 MIT zero로 캡처합니다. 0xC3으로 사용자 zero가 이미 설정된 경우에는
+  // m_mit_user_zero_set 동작처럼 그 offset을 보존합니다.
+  if (!has_mit_user_zero_set_ && !has_auto_mit_zero_captured_) {
+    requested_zero_offset_rad_ = 0.0;
+    zero_capture_pending_ = true;
+    has_auto_mit_zero_captured_ = true;
+  }
 
   pending_command_ = ActuatorCommand{};
   pending_command_.mode = ActuatorControlMode::kZeroTorque;
@@ -235,6 +242,7 @@ void SPGFirmware::handle_set_zero_position(
 
   // 현재 위치 sample은 이 함수 시점에 없으므로 다음 sample 수신 시점에 적용합니다.
   zero_capture_pending_ = true;
+  has_mit_user_zero_set_ = true;
 
   ignore_control_until_time_ = sim_time + config_.set_zero_hold_s;
 
@@ -378,7 +386,11 @@ CanFrame SPGFirmware::make_mit_status_frame(
   //   DATA[1]   = motor temperature int8
   //   DATA[2:3] = torque current Iq int16
   //   DATA[4:5] = speed out dps int16
-  //   DATA[6:7] = position int16, output-side MIT zero 기준 ±12.56 rad
+  //   DATA[6:7] = signed int16 MIT feedback position, output-side MIT zero
+  //               기준 ±12.56 rad
+  //
+  // 0xC0 is a v14 exception: DATA[6:7] is signed int16 MIT feedback
+  // position, not 14-bit raw encoder.
   frame.data[0] = kCmdMITControl;
 
   const int temperature_i8 = clamp_value(

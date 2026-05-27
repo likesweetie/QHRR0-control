@@ -10,10 +10,11 @@ from qhrr0_hw.actuators.dongilc_protocol import (
     SPGMITConfig,
     float_to_uint,
 )
+from robot_controller.subprocesses.dashboard.backend.can_decode import decode_spg_status
 
 
 class SPGActuatorProtocolTest(unittest.TestCase):
-    def test_mit_status_position_uses_signed_feedback_range(self) -> None:
+    def test_mit_status_position_zero_uses_signed_feedback_range(self) -> None:
         protocol = SPGActuatorProtocol(
             command_id=0x141,
             feedback_id=0x141,
@@ -23,12 +24,86 @@ class SPGActuatorProtocolTest(unittest.TestCase):
 
         payload = bytearray(8)
         payload[0] = SPGActuatorProtocol.CMD_MIT_CONTROL
-        struct.pack_into("<h", payload, 6, int(round(-1.0 / 12.56 * 32767.0)))
+        struct.pack_into("<h", payload, 6, 0)
 
         state = protocol.decode_frame(CANFrame(can_id=0x141, data=bytes(payload)))
 
         self.assertIsNotNone(state)
-        self.assertAlmostEqual(state.position_rad, -1.0, places=3)
+        self.assertAlmostEqual(state.position_rad, 0.0, places=6)
+        self.assertEqual(state.raw["mit_position_i16"], 0)
+        self.assertAlmostEqual(state.raw["position_output_rad"], 0.0, places=6)
+
+    def test_mit_status_position_positive_endpoint_uses_int16(self) -> None:
+        protocol = SPGActuatorProtocol(
+            command_id=0x141,
+            feedback_id=0x141,
+            mit_config=SPGMITConfig(feedback_position_max=12.56),
+            expose_single_turn_position=True,
+        )
+
+        payload = bytearray(8)
+        payload[0] = SPGActuatorProtocol.CMD_MIT_CONTROL
+        struct.pack_into("<h", payload, 6, 32767)
+
+        state = protocol.decode_frame(CANFrame(can_id=0x141, data=bytes(payload)))
+
+        self.assertIsNotNone(state)
+        self.assertAlmostEqual(state.position_rad, 12.56, places=6)
+        self.assertEqual(state.raw["mit_position_i16"], 32767)
+
+    def test_mit_status_position_negative_endpoint_does_not_apply_u14_mask(self) -> None:
+        protocol = SPGActuatorProtocol(
+            command_id=0x141,
+            feedback_id=0x141,
+            mit_config=SPGMITConfig(feedback_position_max=12.56),
+            expose_single_turn_position=True,
+        )
+
+        payload = bytearray(8)
+        payload[0] = SPGActuatorProtocol.CMD_MIT_CONTROL
+        struct.pack_into("<h", payload, 6, -32767)
+
+        state = protocol.decode_frame(CANFrame(can_id=0x141, data=bytes(payload)))
+
+        self.assertIsNotNone(state)
+        self.assertAlmostEqual(state.position_rad, -12.56, places=6)
+        self.assertEqual(state.raw["mit_position_i16"], -32767)
+
+    def test_encoder_read_keeps_u14_masking_separate_from_mit_status(self) -> None:
+        protocol = SPGActuatorProtocol(
+            command_id=0x141,
+            feedback_id=0x141,
+            mit_config=SPGMITConfig(),
+            expose_single_turn_position=True,
+        )
+
+        payload = bytearray(8)
+        payload[0] = SPGActuatorProtocol.CMD_READ_ENCODER_DATA
+        payload[1] = 25
+        struct.pack_into("<H", payload, 2, 0xC001)
+        struct.pack_into("<H", payload, 4, 0xBFFF)
+        struct.pack_into("<H", payload, 6, 0x4002)
+
+        state = protocol.decode_frame(CANFrame(can_id=0x141, data=bytes(payload)))
+
+        self.assertIsNotNone(state)
+        self.assertEqual(state.raw["encoder_position_u16"], 0x0001)
+        self.assertEqual(state.raw["encoder_original_u16"], 0x3FFF)
+        self.assertEqual(state.raw["encoder_offset_u16"], 0x0002)
+
+    def test_dashboard_spg_status_decode_uses_mit_v14_position_i16(self) -> None:
+        payload = bytearray(8)
+        payload[0] = SPGActuatorProtocol.CMD_MIT_CONTROL
+        struct.pack_into("<h", payload, 6, -32767)
+
+        decoded = decode_spg_status(
+            bytes(payload),
+            feedback_position_max_rad=12.56,
+            iq_full_scale_count=2048.0,
+            iq_full_scale_current_a=33.0,
+        )
+
+        self.assertAlmostEqual(decoded["position_rad"], -12.56, places=6)
 
     def test_set_zero_ack_uses_signed_output_offset_degrees(self) -> None:
         protocol = SPGActuatorProtocol(
