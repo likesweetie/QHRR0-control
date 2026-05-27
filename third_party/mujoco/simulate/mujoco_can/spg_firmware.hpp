@@ -143,17 +143,14 @@ private:
   // MIT zero coordinate:
   //   p_mit = p_physical - mit_zero_reference_rad_
   //
-  // OpenRobot v14:
-  //   - First 0xC1 enter captures the current position as MIT zero unless a
-  //     user zero was already set by 0xC3.
-  //   - 0xC3 offset=0이면 현재 위치가 0이 되도록 reference를 잡습니다.
-  //   - 0xC3 offset=3000이면 현재 위치가 +30deg가 되도록 reference를 잡습니다.
+  // MIT enter does not change this reference. Initial p_mit follows the
+  // MuJoCo logical joint angle from ActuatorBinding sign/offset.
+  // 0xC3 offset=0이면 현재 위치가 0이 되도록 reference를 잡습니다.
+  // 0xC3 offset=3000이면 현재 위치가 +30deg가 되도록 reference를 잡습니다.
   double mit_zero_reference_rad_ = 0.0;
 
   bool zero_capture_pending_ = false;
   double requested_zero_offset_rad_ = 0.0;
-  bool has_mit_user_zero_set_ = false;
-  bool has_auto_mit_zero_captured_ = false;
 
   double ignore_control_until_time_ = -1.0;
 

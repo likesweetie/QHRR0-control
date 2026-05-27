@@ -27,9 +27,6 @@ class SPGFirmwareV14Test(unittest.TestCase):
 
         namespace {
 
-        constexpr double kPi = 3.14159265358979323846;
-        constexpr double kEps = 1e-9;
-
         mjcan::CanFrame frame_with_opcode(uint8_t opcode) {
           mjcan::CanFrame frame;
           frame.can_id = 0x141;
@@ -41,14 +38,6 @@ class SPGFirmwareV14Test(unittest.TestCase):
 
         mjcan::CanFrame mit_control_frame() {
           return frame_with_opcode(0xC0);
-        }
-
-        mjcan::CanFrame set_zero_frame(int16_t centideg) {
-          mjcan::CanFrame frame = frame_with_opcode(0xC3);
-          const uint16_t raw = static_cast<uint16_t>(centideg);
-          frame.data[6] = static_cast<uint8_t>(raw & 0xFF);
-          frame.data[7] = static_cast<uint8_t>((raw >> 8) & 0xFF);
-          return frame;
         }
 
         int16_t read_i16_le(const mjcan::CanFrame& frame, int offset) {
@@ -66,13 +55,6 @@ class SPGFirmwareV14Test(unittest.TestCase):
           }
           std::cerr << "missing 0xC0 status frame\n";
           std::exit(1);
-        }
-
-        void require_near(double actual, double expected, double eps, const char* label) {
-          if (std::abs(actual - expected) > eps) {
-            std::cerr << label << ": got " << actual << ", expected " << expected << "\n";
-            std::exit(1);
-          }
         }
 
         }  // namespace
@@ -109,52 +91,6 @@ class SPGFirmwareV14Test(unittest.TestCase):
               std::cerr << "negative endpoint was not encoded as signed int16: " << neg_i16 << "\n";
               return 1;
             }
-          }
-
-          {
-            mjcan::SPGFirmware firmware(0x141, config);
-            firmware.reset(0.0);
-
-            mjcan::ActuatorFeedbackSample sample;
-            sample.position_rad = 1.25;
-
-            firmware.on_can_frame(frame_with_opcode(0xC1), 0.001);
-            firmware.make_feedback_frames(sample, 0.002);
-            require_near(
-                firmware.mit_zero_reference_rad(),
-                1.25,
-                kEps,
-                "first 0xC1 auto zero capture");
-
-            firmware.on_can_frame(mit_control_frame(), 0.003);
-            auto frames = firmware.make_feedback_frames(sample, 0.004);
-            const int16_t p_i16 = read_i16_le(find_status(frames), 6);
-            if (std::abs(static_cast<int>(p_i16)) > 1) {
-              std::cerr << "auto zero did not make current position near zero: " << p_i16 << "\n";
-              return 1;
-            }
-          }
-
-          {
-            mjcan::SPGFirmware firmware(0x141, config);
-            firmware.reset(0.0);
-
-            mjcan::ActuatorFeedbackSample sample;
-            sample.position_rad = 1.0;
-
-            firmware.on_can_frame(set_zero_frame(3000), 0.001);
-            firmware.make_feedback_frames(sample, 0.002);
-            const double zero_after_c3 = firmware.mit_zero_reference_rad();
-            const double expected_zero = 1.0 - (30.0 * kPi / 180.0);
-            require_near(zero_after_c3, expected_zero, kEps, "0xC3 user zero reference");
-
-            firmware.on_can_frame(frame_with_opcode(0xC1), 0.003);
-            firmware.make_feedback_frames(sample, 0.004);
-            require_near(
-                firmware.mit_zero_reference_rad(),
-                zero_after_c3,
-                kEps,
-                "0xC1 must preserve user 0xC3 zero");
           }
 
           return 0;

@@ -5,7 +5,7 @@ runtime:
   mode: simulation
 
 hardware:
-  allow_real_can: false
+  allow_real_can: true
   require_manual_arm: true
   require_estop: true
   allow_enable_on_start: false
