@@ -98,6 +98,26 @@
           <button class="button dark" type="submit">Send</button>
         </form>
 
+        <form id="zeroSetForm" class="zero-set-form">
+          <div class="transmit-subhead">
+            <strong>Zero Set</strong>
+            <span id="zeroSetStateBadge" class="badge muted">NORMAL only</span>
+          </div>
+          <label>
+            Actuator
+            <select id="zeroSetActuator"></select>
+          </label>
+          <label>
+            Offset deg
+            <input id="zeroSetOffsetDeg" type="number" step="0.01" value="0.00" />
+          </label>
+          <label>
+            Count
+            <input id="zeroSetOffsetCount" type="text" value="0" readonly />
+          </label>
+          <button id="zeroSetSubmit" class="button secondary" type="submit">Send Zero</button>
+        </form>
+
         <p id="commandMessage" class="message-line"></p>
       </section>
 
@@ -241,6 +261,6 @@
       </section>
     </main>
 
-    <script src="/static/app.js?v=20260527-applied-command"></script>
+    <script src="/static/app.js?v=20260527-zero-offset-panel"></script>
   </body>
 </html>

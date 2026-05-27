@@ -67,6 +67,7 @@ function render(state) {
   if ($("shmStatusBadge")) renderShm(state);
   if ($("armButton") || $("runButton") || $("dampingButton") || $("faultClearButton") || $("estopButton")) syncOperatorControls(state);
   syncControls(state);
+  syncZeroSetControls(state);
 }
 
 function hexCanId(value) {
@@ -351,12 +352,18 @@ function renderMotors(motors, safety, controllerState) {
         button.classList.toggle("danger", motor.mit_polling);
         button.classList.toggle("secondary", !motor.mit_polling);
       }
+      if (button.dataset.motorAction === "zero") {
+        button.disabled = controllerState !== "NORMAL";
+      }
       const blockedEnable = button.dataset.motorAction === "toggle-enable"
         && button.dataset.nextAction === "enter"
         && enableBlocked;
-      button.classList.toggle("gated", motorGated || blockedEnable);
+      const blockedZero = button.dataset.motorAction === "zero"
+        && controllerState !== "NORMAL";
+      button.classList.toggle("gated", motorGated || blockedEnable || blockedZero);
       button.title = blockedEnable
         ? `Enable blocked while controller is ${controllerState}`
+        : blockedZero ? "Zero set is available only while controller is NORMAL"
         : motorGated ? "Requires TX unlock and allow_actuator_commands=true" : "";
     });
   });
@@ -656,6 +663,44 @@ function syncControls(state) {
   if ($("pollHz")) $("pollHz").value = state.controls.imu_poll_hz || $("pollHz").value;
 }
 
+function offsetDegToCount(value) {
+  const scaled = Number(value) * 100;
+  if (!Number.isFinite(scaled)) return null;
+  return scaled >= 0 ? Math.floor(scaled + 0.5) : Math.ceil(scaled - 0.5);
+}
+
+function updateZeroSetPreview() {
+  const input = $("zeroSetOffsetDeg");
+  const output = $("zeroSetOffsetCount");
+  if (!input || !output) return null;
+  const count = offsetDegToCount(input.value);
+  output.value = count === null ? "-" : String(count);
+  return count;
+}
+
+function syncZeroSetControls(state) {
+  if (!$("zeroSetForm")) return;
+  const stateName = controllerSafetyState(state);
+  const txEnabled = state && state.safety && state.safety.tx_enabled === true;
+  const count = updateZeroSetPreview();
+  const countValid = count !== null && count >= -32768 && count <= 32767;
+  const canSend = stateName === "NORMAL" && txEnabled && countValid;
+  const select = $("zeroSetActuator");
+  const submit = $("zeroSetSubmit");
+  const badge = $("zeroSetStateBadge");
+
+  if (badge) {
+    badge.textContent = stateName === "NORMAL" ? (txEnabled ? "NORMAL" : "TX locked") : `${stateName} blocked`;
+    badge.className = stateName === "NORMAL" && txEnabled ? "badge ok" : "badge warn";
+  }
+  if (submit) {
+    submit.disabled = !canSend || !select || !select.value;
+    submit.title = canSend
+      ? ""
+      : countValid ? "Zero set is available only in NORMAL with TX unlocked" : "Offset count must fit int16";
+  }
+}
+
 function syncOperatorControls(state) {
   const stateName = controllerSafetyState(state);
   if ($("armButton")) {
@@ -710,6 +755,7 @@ async function loadDashboardConfig() {
   const response = await fetch("/api/config");
   dashboardConfig = await response.json();
   populateTransmitIds(dashboardConfig);
+  populateZeroSetActuators(dashboardConfig);
 }
 
 function populateTransmitIds(config) {
@@ -744,6 +790,23 @@ function populateTransmitIds(config) {
       $("rawPayload").value = option.dataset.payload;
     }
   });
+}
+
+function populateZeroSetActuators(config) {
+  const select = $("zeroSetActuator");
+  if (!select) return;
+  const actuators = Array.isArray(config.actuators) ? config.actuators : [];
+  select.innerHTML = "";
+
+  actuators.forEach((actuator) => {
+    const canId = hexCanId(actuator.can_id);
+    const option = document.createElement("option");
+    option.value = canId;
+    option.textContent = `${actuator.name || canId} (${canId})`;
+    select.appendChild(option);
+  });
+
+  syncZeroSetControls(latestState || {});
 }
 
 function showMessage(text, isError = false) {
@@ -832,6 +895,27 @@ function bindControls() {
       const option = $("rawCanId").selectedOptions[0];
       if (option && option.dataset.payload && $("rawPayload")) {
         $("rawPayload").value = option.dataset.payload;
+      }
+    });
+  }
+
+  if ($("zeroSetOffsetDeg")) {
+    $("zeroSetOffsetDeg").addEventListener("input", () => {
+      syncZeroSetControls(latestState || {});
+    });
+  }
+
+  if ($("zeroSetForm")) {
+    $("zeroSetForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const canId = $("zeroSetActuator").value;
+        const offsetDeg = Number($("zeroSetOffsetDeg").value);
+        await postJson(`/api/actuator/${canId}/zero`, { offset_deg: offsetDeg });
+        const count = updateZeroSetPreview();
+        showMessage(`${canId} zero set sent (${fmt.maybe(offsetDeg, 2)} deg / ${count})`);
+      } catch (error) {
+        showMessage(error.message, true);
       }
     });
   }

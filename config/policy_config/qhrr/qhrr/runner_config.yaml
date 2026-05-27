@@ -21,7 +21,7 @@ default_joint_angle:
   - 2.0
 
 
-action_scale: 0.0
+action_scale: 0.25
 
 action_clip : 100
 

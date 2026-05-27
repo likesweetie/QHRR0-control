@@ -945,7 +945,8 @@ select {
 .control-row,
 .motor-actions,
 .operator-actions,
-.command-form {
+.command-form,
+.zero-set-form {
   display: grid;
   gap: 10px;
   margin-top: 12px;
@@ -959,6 +960,25 @@ select {
 .command-form {
   grid-template-columns: 1fr 1.4fr auto;
   align-items: end;
+}
+
+.zero-set-form {
+  grid-template-columns: 1.2fr minmax(96px, 0.8fr) minmax(78px, 0.55fr) auto;
+  align-items: end;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.transmit-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  grid-column: 1 / -1;
+  gap: 10px;
+}
+
+.transmit-subhead strong {
+  font-size: 14px;
 }
 
 .motor-actions {
@@ -1156,6 +1176,7 @@ td code,
   }
 
   .command-form,
+  .zero-set-form,
   .operator-actions,
   .motor-actions {
     grid-template-columns: 1fr;

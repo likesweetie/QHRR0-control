@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from robot_controller.subprocesses.dashboard.backend.can_decode import SPG_CMD_MIT_ENTER, SPG_CMD_MIT_EXIT
+from robot_controller.subprocesses.dashboard.backend.can_decode import (
+    SPG_CMD_MIT_ENTER,
+    SPG_CMD_MIT_EXIT,
+    SPG_CMD_MIT_SET_ZERO,
+)
 from robot_controller.subprocesses.dashboard.backend.command_api import CommandError, CommandService
 from robot_controller.subprocesses.dashboard.backend.state import MonitorState
 
@@ -109,6 +113,46 @@ class DashboardCommandApiTest(unittest.TestCase):
 
         with self.assertRaisesRegex(CommandError, "E-stop damping"):
             service.send_raw(0x141, bytes([SPG_CMD_MIT_ENTER]) + b"\x00" * 7)
+
+        self.assertEqual(client.sent, [])
+
+    def test_zero_set_requires_normal_controller_state(self) -> None:
+        client = FakeCANClient()
+        service = CommandService(
+            monitor_state(),
+            client,
+            controller_safety_state_provider=lambda: "DAMPING",
+        )
+
+        with self.assertRaisesRegex(CommandError, "required: NORMAL"):
+            service.motor_zero(0x141, 3000)
+
+        self.assertEqual(client.sent, [])
+
+    def test_zero_set_allows_normal_controller_state(self) -> None:
+        client = FakeCANClient()
+        service = CommandService(
+            monitor_state(),
+            client,
+            controller_safety_state_provider=lambda: "NORMAL",
+        )
+
+        service.motor_zero(0x141, 3000)
+
+        self.assertEqual(len(client.sent), 1)
+        self.assertEqual(client.sent[0].data[0], SPG_CMD_MIT_SET_ZERO)
+        self.assertEqual(client.sent[0].data[6:8], bytes([0xB8, 0x0B]))
+
+    def test_raw_zero_set_is_also_normal_gated(self) -> None:
+        client = FakeCANClient()
+        service = CommandService(
+            monitor_state(),
+            client,
+            controller_safety_state_provider=lambda: "DISABLED",
+        )
+
+        with self.assertRaisesRegex(CommandError, "required: NORMAL"):
+            service.send_raw(0x141, bytes([SPG_CMD_MIT_SET_ZERO, 0, 0, 0, 0, 0, 0, 0]))
 
         self.assertEqual(client.sent, [])
 

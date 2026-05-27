@@ -1,0 +1,65 @@
+[process_supervisor] log file: /home/kale/QHRR_control/log/20260527_142924/dashboard.log
+INFO:     Started server process [216451]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:45562 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45562 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45574 - "GET /static/app.js?v=20260527-zero-offset-panel HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45574 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45590 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:45574 - "POST /api/operator/arm HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45574 - "POST /api/operator/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55322 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55330 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:55330 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55334 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:55330 - "GET /processes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55330 - "GET /static/app.js?v=20260526-process-actions-v6 HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:55330 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46534 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     127.0.0.1:55330 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46542 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:55330 - "POST /api/processes/task_controller/stop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55330 - "POST /api/processes/task_controller/stop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44276 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44276 - "GET /static/app.js?v=20260527-zero-offset-panel HTTP/1.1" 304 Not Modified
+INFO:     connection closed
+INFO:     127.0.0.1:44276 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44290 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:44276 - "POST /api/operator/damping HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44282 - "GET /static/app.js?v=20260526-process-actions-v6 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:44282 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:44658 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:44662 - "POST /api/processes/task_controller/start HTTP/1.1" 200 OK
+# Theme parsing error: gtk.css:288:18: 'border-spacing' is not a valid property name
+# Theme parsing error: gtk.css:392:20: '-gtk-icon-filter' is not a valid property name
+# Theme parsing error: gtk.css:411:20: '-gtk-icon-filter' is not a valid property name
+# Theme parsing error: gtk.css:2475:24: '-gtk-icon-filter' is not a valid property name
+# Theme parsing error: gtk.css:2878:16: 'border-spacing' is not a valid property name
+# Theme parsing error: gtk.css:2910:20: 'border-spacing' is not a valid property name
+# Theme parsing error: gtk.css:3037:20: '-gtk-icon-filter' is not a valid property name
+# Theme parsing error: gtk.css:3250:8: 'filter' is not a valid property name
+# Theme parsing error: gtk.css:4280:18: 'border-spacing' is not a valid property name
+# Theme parsing error: gtk.css:4919:18: '-gtk-icon-filter' is not a valid property name
+INFO:     127.0.0.1:45152 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:45152 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     connection closed
+INFO:     127.0.0.1:45172 - "WebSocket /ws/state" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:45152 - "POST /api/operator/run HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [216451]

@@ -157,6 +157,7 @@ class DashboardRobotStateReader:
             "iq_a_approx": current_a,
             "speed_dps": self._rad_s_to_deg_s(velocity_rad_s),
             "position_rad": item.get("position_rad"),
+            "zero_offset_count": None if existing is None else existing.zero_offset_count,
             "raw": self._control_summary(item),
         }
 

@@ -4,7 +4,6 @@ import argparse
 import signal
 from pathlib import Path
 
-from .config import HardwareSafetyOptions, validate_runtime_safety
 from .core.config import load_robot_controller_config
 from .controller import RobotController
 

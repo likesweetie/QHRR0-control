@@ -27,6 +27,7 @@ ENABLE_BLOCK_STATES = {
     "SHUTTING_DOWN",
     "STOPPED",
 }
+ZERO_SET_ALLOWED_STATES = {"NORMAL"}
 
 
 def normalize_state_name(value: str | None) -> str | None:
@@ -132,6 +133,7 @@ class CommandService:
 
     def send_raw(self, can_id: int, data: bytes) -> dict:
         self.reject_motor_enable_when_blocked(can_id, data)
+        self.reject_motor_zero_when_not_normal(can_id, data)
         can_client = self.require_tx()
         try:
             can_client.send(CANFrame(can_id=can_id, data=data))
@@ -157,6 +159,27 @@ class CommandService:
             )
         if is_operator_estop_damping(state_name, self.controller_safety_reason()):
             raise CommandError("Motor enable is blocked while controller is in operator E-stop damping")
+
+    def reject_motor_zero_when_not_normal(self, can_id: int, data: bytes) -> None:
+        if not data or data[0] != SPG_CMD_MIT_SET_ZERO:
+            return
+        if self.state.actuator_config_for_can_id(can_id) is None:
+            return
+        self.require_controller_state(
+            action_name="Motor zero set",
+            allowed_states=ZERO_SET_ALLOWED_STATES,
+        )
+
+    def require_controller_state(self, *, action_name: str, allowed_states: set[str]) -> None:
+        state_name = self.controller_safety_state()
+        if self.controller_safety_state_provider is None or state_name is None:
+            raise CommandError(f"{action_name} is blocked because controller safety state is unavailable")
+        if state_name not in allowed_states:
+            allowed = ", ".join(sorted(allowed_states))
+            raise CommandError(
+                f"{action_name} is blocked while controller safety state is {state_name}; "
+                f"required: {allowed}"
+            )
 
     def controller_safety_state(self) -> str | None:
         if self.controller_safety_state_provider is None:
@@ -190,6 +213,8 @@ class CommandService:
         return self.send_motor_command(can_id, SPG_CMD_MIT_EXIT)
 
     def motor_zero(self, can_id: int, offset_count: int = 0) -> dict:
+        if not (-32768 <= int(offset_count) <= 32767):
+            raise CommandError(f"MIT zero offset_count out of int16 range: {offset_count}")
         suffix = int(offset_count).to_bytes(2, "little", signed=True)
         return self.send_motor_command(can_id, SPG_CMD_MIT_SET_ZERO, suffix=suffix)
 

@@ -267,6 +267,8 @@ class MonitorState:
             motor.last_t = now
             motor.raw_data = data[:8]
             motor.last_kind = "MIT_SET_ZERO_SENT"
+            if len(data) >= 8:
+                motor.zero_offset_count = int.from_bytes(data[6:8], "little", signed=True)
 
     def _update_raw_frame(self, frame: ParsedFrame, now: float) -> None:
         raw = self.raw_frames.get(frame.can_id)
@@ -438,6 +440,7 @@ class MonitorState:
             "iq_a_approx": motor.iq_a_approx,
             "speed_dps": motor.speed_dps,
             "position_rad": motor.position_rad,
+            "zero_offset_count": motor.zero_offset_count,
             "raw": hex_data(motor.raw_data),
         }
 

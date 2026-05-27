@@ -48,7 +48,17 @@ class ImuHzRequest(BaseModel):
 
 
 class MotorZeroRequest(BaseModel):
-    offset_count: int = 0
+    offset_count: int | None = None
+    offset_deg: float | None = None
+
+    def resolved_offset_count(self) -> int:
+        if self.offset_count is not None and self.offset_deg is not None:
+            raise ValueError("Use either offset_count or offset_deg, not both")
+        if self.offset_deg is not None:
+            return round_half_away_from_zero(float(self.offset_deg) * 100.0)
+        if self.offset_count is not None:
+            return int(self.offset_count)
+        return 0
 
 
 class ConfirmRequest(BaseModel):
@@ -293,6 +303,12 @@ def parse_hex_payload(value: str) -> bytes:
     if len(data) > 8:
         raise ValueError("Classical CAN payload must be <= 8 bytes")
     return data
+
+
+def round_half_away_from_zero(value: float) -> int:
+    if value >= 0.0:
+        return int(value + 0.5)
+    return int(value - 0.5)
 
 
 config, controller_config = load_config()
@@ -662,7 +678,10 @@ async def motor_exit(can_id: str) -> dict:
 @app.post("/api/actuator/{can_id}/zero")
 async def motor_zero(can_id: str, req: MotorZeroRequest) -> dict:
     try:
-        tx = commands.motor_zero(parse_can_id(can_id), req.offset_count)
+        offset_count = req.resolved_offset_count()
+        tx = commands.motor_zero(parse_can_id(can_id), offset_count)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (CommandError, OSError) as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {"ok": True, "tx": tx}
