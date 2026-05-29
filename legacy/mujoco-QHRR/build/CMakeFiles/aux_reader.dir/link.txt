@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/aux_reader.dir/app/aux_reader/main.cpp.o CMakeFiles/aux_reader.dir/app/aux_reader/joystick.cpp.o -o aux_reader  -lpthread 

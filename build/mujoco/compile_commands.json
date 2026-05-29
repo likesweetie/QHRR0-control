@@ -1,0 +1,98 @@
+[
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/daemon.dir/app/daemon/main.cpp.o -c /home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/daemon/main.cpp",
+  "file": "/home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/daemon/main.cpp",
+  "output": "CMakeFiles/daemon.dir/app/daemon/main.cpp.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/daemon.dir/app/daemon/daemon.cpp.o -c /home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/daemon/daemon.cpp",
+  "file": "/home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/daemon/daemon.cpp",
+  "output": "CMakeFiles/daemon.dir/app/daemon/daemon.cpp.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/aux_reader.dir/app/aux_reader/main.cpp.o -c /home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/aux_reader/main.cpp",
+  "file": "/home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/aux_reader/main.cpp",
+  "output": "CMakeFiles/aux_reader.dir/app/aux_reader/main.cpp.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/aux_reader.dir/app/aux_reader/joystick.cpp.o -c /home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/aux_reader/joystick.cpp",
+  "file": "/home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/aux_reader/joystick.cpp",
+  "output": "CMakeFiles/aux_reader.dir/app/aux_reader/joystick.cpp.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++  -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -std=gnu++17 -o CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o -c /home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/shm_logger/main.cpp",
+  "file": "/home/hrr/QHRR0-control/legacy/mujoco-QHRR/app/shm_logger/main.cpp",
+  "output": "CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/main.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/main.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/main.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/main.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_adapter.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_adapter.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_adapter.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_adapter.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_dispatch.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_dispatch.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_dispatch.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/glfw_dispatch.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/platform_ui_adapter.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/platform_ui_adapter.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/platform_ui_adapter.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/platform_ui_adapter.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/simulate.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/simulate.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/simulate.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/simulate.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/lodepng.cpp.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/lodepng.cpp",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/lodepng.cpp",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/lodepng.cpp.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/mujoco_can_bridge.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/socket_can_adapter.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/actuator_firmware_base.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/spg_firmware.cc.o"
+},
+{
+  "directory": "/home/hrr/QHRR0-control/build/mujoco",
+  "command": "/usr/bin/c++ -DMUJOCO_SIM_CONFIG_DIR=\\\"/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/configs\\\" -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/include -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate -I/home/hrr/QHRR0-control/legacy/mujoco-QHRR/../../third_party/mujoco/simulate/mujoco_can -std=gnu++17 -o CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc.o -c /home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc",
+  "file": "/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc",
+  "output": "CMakeFiles/mujoco_simulate.dir/home/hrr/QHRR0-control/third_party/mujoco/simulate/mujoco_can/e2box_imu_firmware.cc.o"
+}
+]

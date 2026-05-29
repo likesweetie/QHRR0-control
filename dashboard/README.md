@@ -1,0 +1,125 @@
+# QHRR CAN Dashboard
+
+Web-based SocketCAN dashboard for monitoring QHRR CAN traffic.
+
+## Features
+
+- Real-time CAN bus load, RX/TX rate, estimated kbps, and total counters
+- CAN node table with heartbeat Hz, last seen age, and timeout status
+- E2Box IMU decode for quaternion, projected gravity, and gyro
+- SHM-backed robot/controller state display without dashboard-driven IMU requests
+- SPG/MIT actuator status table for motor nodes
+- Raw CAN transmit panel
+- TX safety lock enabled by default
+- Motor enter/exit endpoints gated by `allow_motor_commands`
+- Zero set buttons publish `ZERO_SET` through `OperatorCommandShm`
+
+## Layout
+
+```text
+Dashboard/
+├── README.md
+├── requirements.txt
+├── config.yaml
+├── backend/
+│   ├── app.py
+│   ├── bus_load.py
+│   ├── can_decode.py
+│   ├── command_api.py
+│   ├── socketcan_io.py
+│   └── state.py
+└── frontend/
+    ├── index.html
+    ├── app.js
+    └── style.css
+```
+
+The backend owns SocketCAN I/O, CAN decode, node freshness, bus-load calculation, and transmit safety. The frontend only renders snapshots from `/ws/state` and calls command endpoints.
+
+## Install
+
+From the repository root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r Dashboard/requirements.txt
+```
+
+## Prepare vcan0
+
+```bash
+sudo modprobe can
+sudo modprobe can_raw
+sudo modprobe vcan
+
+if ! ip link show vcan0 > /dev/null 2>&1; then
+  sudo ip link add dev vcan0 type vcan
+fi
+
+sudo ip link set up vcan0
+```
+
+## Run
+
+```bash
+python3 -m Dashboard.backend.app
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+The server still starts if `vcan0` or `can0` is not available. The dashboard will show the SocketCAN connection error and retry in the background.
+
+## Configuration
+
+Edit `Dashboard/config.yaml`.
+
+Important defaults:
+
+```yaml
+can:
+  iface: vcan0
+  bitrate: 1000000
+  node_timeout_s: 0.25
+
+safety:
+  tx_enabled_by_default: false
+  allow_motor_commands: false
+```
+
+For real robot CAN, keep TX locked by default and leave `allow_motor_commands: false` unless you are intentionally testing command transmission.
+
+## Command Safety
+
+- TX starts locked.
+- Raw frame send, MIT polling, and motor commands require TX unlock.
+- Unlock requires typing `UNLOCK` in the browser prompt.
+- Motor enter/exit also require `allow_motor_commands: true`.
+- Zero set buttons use the robot controller state machine through `OperatorCommandShm` and require controller `NORMAL`.
+- Continuous MIT control (`0xC0`) is not exposed by this dashboard.
+
+## Quick Checks
+
+Send example traffic:
+
+```bash
+imu
+cansend vcan0 141#C100000000000000
+cansend vcan0 2A1#0000000000001027
+cansend vcan0 321#0000000000000000
+
+actuator
+cansend vcan0 141#C100000000000000 #enable
+cansend vcan0 141#C0851E8001483380 #move to 0.5rad
+```
+
+Expected dashboard updates:
+
+- Node heartbeat rows become online.
+- Motor 1 shows `MIT_ENTER_ACK`.
+- IMU counters and decoded values update when IMU frames are produced by the robot side.
+- CAN load bar increases with traffic rate.

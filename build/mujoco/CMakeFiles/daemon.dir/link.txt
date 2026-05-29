@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/daemon.dir/app/daemon/main.cpp.o CMakeFiles/daemon.dir/app/daemon/daemon.cpp.o -o daemon  -lyaml-cpp -lpthread 
