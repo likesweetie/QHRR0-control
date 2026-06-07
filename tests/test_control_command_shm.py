@@ -11,8 +11,8 @@ class ControlCommandShmTest(unittest.TestCase):
         name = f"qhrr_test_control_command_{uuid.uuid4().hex}"
         shm = ControlCommandShm.create(name)
         try:
-            writer = ControlCommandShm.open_writer(name)
-            reader = ControlCommandShm.open_reader(name)
+            writer = ControlCommandShm.open(name)
+            reader = ControlCommandShm.open(name)
             try:
                 payload = ControlCommandC()
                 payload.num_targets = 1

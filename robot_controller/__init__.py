@@ -1,9 +1,7 @@
-from .core.state import RobotControllerState
 
 __all__ = [
     "RobotController",
     "RobotControllerConfig",
-    "RobotControllerState",
     "load_robot_controller_config",
 ]
 

@@ -6,7 +6,7 @@ from robot_controller.shm.types.operator_command import (
     OperatorCommandC,
     OperatorCommandCode,
 )
-from robot_controller.state_machine import ControllerMode, ControllerStateMachine
+from robot_controller.state_machine import ControllerMode, ControlModeFsm
 
 
 def command(code: OperatorCommandCode) -> OperatorCommandC:
@@ -17,9 +17,9 @@ def command(code: OperatorCommandCode) -> OperatorCommandC:
     return item
 
 
-class ControllerStateMachineTest(unittest.TestCase):
+class ControlModeFsmTest(unittest.TestCase):
     def test_enable_duration_transitions_to_damping(self) -> None:
-        sm = ControllerStateMachine(enable_duration_s=0.5, mode_enter_time=10.0)
+        sm = ControlModeFsm(enable_duration_s=0.5, mode_enter_time=10.0)
         sm.update(command(OperatorCommandCode.ENABLE), 10.0)
         self.assertEqual(sm.mode, ControllerMode.ENABLING)
         sm.update(None, 10.49)
@@ -28,7 +28,7 @@ class ControllerStateMachineTest(unittest.TestCase):
         self.assertEqual(sm.mode, ControllerMode.DAMPING)
 
     def test_repeated_enable_does_not_reenter_enabling_from_damping(self) -> None:
-        sm = ControllerStateMachine(enable_duration_s=0.5, mode_enter_time=10.0)
+        sm = ControlModeFsm(enable_duration_s=0.5, mode_enter_time=10.0)
         enable = command(OperatorCommandCode.ENABLE)
         sm.update(enable, 10.0)
         self.assertEqual(sm.mode, ControllerMode.ENABLING)
@@ -38,7 +38,7 @@ class ControllerStateMachineTest(unittest.TestCase):
         self.assertEqual(sm.mode, ControllerMode.DAMPING)
 
     def test_run_transitions_from_damping_to_normal(self) -> None:
-        sm = ControllerStateMachine(
+        sm = ControlModeFsm(
             enable_duration_s=0.0,
             mode=ControllerMode.DAMPING,
             mode_enter_time=1.0,
@@ -47,7 +47,7 @@ class ControllerStateMachineTest(unittest.TestCase):
         self.assertEqual(sm.mode, ControllerMode.NORMAL)
 
     def test_estop_latches_until_reset_fault(self) -> None:
-        sm = ControllerStateMachine(enable_duration_s=0.0, mode_enter_time=1.0)
+        sm = ControlModeFsm(enable_duration_s=0.0, mode_enter_time=1.0)
         sm.update(command(OperatorCommandCode.ESTOP), 1.0)
         self.assertEqual(sm.mode, ControllerMode.ESTOP)
         sm.update(command(OperatorCommandCode.ENABLE), 2.0)
@@ -56,7 +56,7 @@ class ControllerStateMachineTest(unittest.TestCase):
         self.assertEqual(sm.mode, ControllerMode.DISABLED)
 
     def test_zero_setting_exits_to_disabled_when_command_released(self) -> None:
-        sm = ControllerStateMachine(enable_duration_s=0.0, mode_enter_time=1.0)
+        sm = ControlModeFsm(enable_duration_s=0.0, mode_enter_time=1.0)
         sm.update(command(OperatorCommandCode.ZERO_SET), 1.0)
         self.assertEqual(sm.mode, ControllerMode.ZERO_SETTING)
         sm.update(command(OperatorCommandCode.NONE), 2.0)

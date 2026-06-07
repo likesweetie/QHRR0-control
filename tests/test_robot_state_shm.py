@@ -12,7 +12,7 @@ class RobotStateShmTest(unittest.TestCase):
         name = f"qhrr_test_state_{uuid.uuid4().hex}"
         shm = RobotStateShm.create(name)
         try:
-            reader = RobotStateShm.open_reader(name)
+            reader = RobotStateShm.open(name)
             try:
                 self.assertFalse(reader.read_relaxed().is_initialized())
             finally:
@@ -25,8 +25,8 @@ class RobotStateShmTest(unittest.TestCase):
         name = f"qhrr_test_state_{uuid.uuid4().hex}"
         shm = RobotStateShm.create(name)
         try:
-            writer = RobotStateShm.open_writer(name)
-            reader = RobotStateShm.open_reader(name)
+            writer = RobotStateShm.open(name)
+            reader = RobotStateShm.open(name)
             try:
                 writer.write(new_robot_state(ControllerMode.NORMAL))
                 payload = reader.read_relaxed()

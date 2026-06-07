@@ -4,40 +4,55 @@ import logging
 import math
 import time
 
+from enum import IntEnum
+
 from hal.can_bus.process_transport import CANProcessTransport
 from hal.hardware.can.actuator.driver import ActuatorDriver
 from hal.hardware.can.imu.driver import IMUDriver
+
 from qhrr0_hw.actuators import SPGMITConfig, create_spg_actuator_driver
 from qhrr0_hw.imu import E2BoxIMUProtocol
 from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_platform
 
 from robot_controller.config import RobotControllerConfig
-from robot_controller.core.state import RobotControllerState
+from robot_controller.state_machine import ControllerMode, ControlModeFsm
+from robot_controller.supervisor import ProcessSupervisor
+from robot_controller.shm.manager import ShmManager
 from robot_controller.shm import (
-    OPERATOR_ZERO_TARGET_MAGIC,
     COMMAND_OUTPUT_SOURCE_VALUES,
     MAX_ROBOT_STATE_ACTUATORS,
+    OPERATOR_ZERO_TARGET_MAGIC,
+    CommandTargetStateC,
     ControlCommandC,
     ControlCommandShm,
-    CommandTargetStateC,
     OperatorCommandC,
     OperatorCommandCode,
     OperatorCommandShm,
     RobotStateC,
     RobotStateShm,
 )
-from robot_controller.state_machine import ControllerMode, ControllerStateMachine
-from robot_controller.supervisor import ProcessSupervisor
-from robot_controller.shm.manager import ShmManager
 
 
 logger = logging.getLogger(__name__)
 
+class RuntimePhase(IntEnum):
+    UNKNOWN = 0
+    CREATED = 1
+    INIT_SHM = 2
+    START_CAN_DAEMON = 3
+    BRINGUP_IMU = 4
+    START_CHILD_PROCESSES = 5
+    RUNNING = 6
+    SHUTTING_DOWN = 7
+    STOPPED = 8
+    ERROR = 9
+
 
 class RobotController:
     def __init__(self, config: RobotControllerConfig):
+        self._runtime_phase = RuntimePhase.CREATED
+
         self.config = config
-        self.controller_state = RobotControllerState.CREATED
 
         self.robot_spec: QHRR0RobotSpec = robot_spec_from_platform(config.platform)
 
@@ -104,12 +119,11 @@ class RobotController:
         self.operator_cmd_shm: OperatorCommandShm | None = None
         self.control_state_shm: RobotStateShm | None = None
         self.dashboard_state_shm: RobotStateShm | None = None
-        self.state_machine = ControllerStateMachine(
-            enable_duration_s=config.state_machine.enable_duration_s,
-        )
         ################################################################
 
-
+        self.state_machine = ControlModeFsm(
+            enable_duration_s=config.state_machine.enable_duration_s,
+        )
         self.processes_supervisor = ProcessSupervisor(config.processes)
 
 
@@ -122,42 +136,41 @@ class RobotController:
         self._last_dashboard_state_publish_t = 0.0
         self._last_consumed_operator_timestamp_ns: int | None = None
         self._last_ignored_operator_timestamp_ns: int | None = None
+
         self._running = False
 
     def start(self) -> None:
         try:
-            self.controller_state = RobotControllerState.INIT_SHM
+            self.controller_state = RuntimePhase.INIT_SHM
             if self.config.shm.cleanup_stale_on_start:
                 self.shm_manager.cleanup_stale()
             self.shm_manager.create_all()
-            self.control_cmd_shm = ControlCommandShm.open_reader(self.config.shm.mit_command.name)
-            self.operator_cmd_shm = OperatorCommandShm.open_reader(self.config.shm.operator_command.name)
-            self.control_state_shm = RobotStateShm.open_writer(self.config.shm.control_state.name)
-            self.dashboard_state_shm = RobotStateShm.open_writer(self.config.shm.dashboard_state.name)
+            self.control_cmd_shm = ControlCommandShm.open(self.config.shm.mit_command.name)
+            self.operator_cmd_shm = OperatorCommandShm.open(self.config.shm.operator_command.name)
+            self.control_state_shm = RobotStateShm.open(self.config.shm.control_state.name)
+            self.dashboard_state_shm = RobotStateShm.open(self.config.shm.dashboard_state.name)
 
-            self.controller_state = RobotControllerState.START_CAN_DAEMON
+            self.controller_state = RuntimePhase.START_CAN_DAEMON
             self.processes_supervisor.start_by_name("can_daemon")
             self.can.connect()
             self._register_callbacks()
 
             #bringup_imu()
-            self.controller_state = RobotControllerState.BRINGUP_IMU
-            if not self.config.can.imu.enabled:
-                return
-            if not self.config.can.imu.request_all_on_start:
-                return
-            for _ in range(int(self.config.can.imu.startup_request_count)):
-                self.can.send_frame(self.imu.make_request_all_frame())
-                time.sleep(self.config.can.imu.startup_request_delay_s)
+            self.controller_state = RuntimePhase.BRINGUP_IMU
+            if (self.config.can.imu.enabled) and (self.config.can.imu.request_all_on_start):
+                for _ in range(int(self.config.can.imu.startup_request_count)):
+                    self.can.send_frame(self.imu.make_request_all_frame())
+                    time.sleep(self.config.can.imu.startup_request_delay_s)
 
-            self.controller_state = RobotControllerState.START_CHILD_PROCESSES
+            self.controller_state = RuntimePhase.START_CHILD_PROCESSES
             self.processes_supervisor.start_all()
 
-            self.controller_state = RobotControllerState.RUNNING
+            self.controller_state = RuntimePhase.RUNNING
             self._running = True
+
             self._publish_state(force=True)
         except Exception:
-            self.controller_state = RobotControllerState.ERROR
+            self.controller_state = RuntimePhase.ERROR
             self.shutdown()
             raise
 
@@ -170,16 +183,16 @@ class RobotController:
                 time.sleep(next_t - now)
             if not self._running:
                 break
-            self.tick()
+            self.loop()
             next_t += control_period_s
             now = time.perf_counter()
             if next_t < now:
                 next_t = now + control_period_s
 
-    def tick(self) -> RobotStateC:
+    def loop(self) -> RobotStateC:
         now = time.monotonic()
         
-        #request_imu_on_tick
+        #sending request imu data
         if self.config.can.imu.enabled and self.config.can.imu.request_all_each_tick:
             self.can.send_frame(self.imu.make_request_all_frame())
 
@@ -188,45 +201,56 @@ class RobotController:
         op = self._consume_operator_command(op)
         mode = self.state_machine.update(op, now)
 
-        if mode == ControllerMode.ESTOP:
-            self._send_disable_all()
-            return self._publish_state()
+        match mode:
+            case ControllerMode.ESTOP:
+                self._record_output_command("DISABLE", ())
+                for actuator in self.actuators.values():
+                    self.can.send_frame(actuator.make_disable_frame())
+                return self._publish_state()
 
-        if mode == ControllerMode.DISABLED:
-            self._send_disable_all()
-            return self._publish_state()
+            case ControllerMode.DISABLED:
+                self._record_output_command("DISABLE", ())
+                for actuator in self.actuators.values():
+                    self.can.send_frame(actuator.make_disable_frame())
+                return self._publish_state()
 
-        if mode == ControllerMode.ENABLING:
-            self._send_enable_all()
-            return self._publish_state()
+            case ControllerMode.ENABLING:
+                self._record_output_command("ENABLE", ())
+                for actuator in self.actuators.values():
+                    self.can.send_frame(actuator.make_enable_frame())
+                return self._publish_state()
 
-        if mode == ControllerMode.ZERO_SETTING:
-            self._send_zero_set_all(op)
-            return self._publish_state()
+            case ControllerMode.ZERO_SETTING:
+                self._send_zero_set_all(op)
+                return self._publish_state()
 
-        if mode == ControllerMode.DAMPING:
-            self._send_damping_all()
-            return self._publish_state()
+            case ControllerMode.DAMPING:
+                self._send_damping_all()
+                return self._publish_state()
 
-        if mode == ControllerMode.NORMAL:
-            assert self.control_cmd_shm is not None
-            cmd = self.control_cmd_shm.read_relaxed()
-            self._send_policy_command(cmd)
-            return self._publish_state()
+            case ControllerMode.NORMAL:
+                assert self.control_cmd_shm is not None
+                cmd = self.control_cmd_shm.read_relaxed()
+                self._send_policy_command(cmd)
+                return self._publish_state()
+            
+            case _:
+                raise RuntimeError(f"Unhandled controller mode: {mode}")
 
-        raise RuntimeError(f"Unhandled controller mode: {mode}")
 
     def request_stop(self) -> None:
         self._running = False
 
     def shutdown(self) -> None:
-        if self.controller_state == RobotControllerState.STOPPED:
+        if self.controller_state == RuntimePhase.STOPPED:
             return
         self._running = False
-        self.controller_state = RobotControllerState.SHUTTING_DOWN
+        self.controller_state = RuntimePhase.SHUTTING_DOWN
         try:
             if self.can.is_connected():
-                self._send_disable_all()
+                self._record_output_command("DISABLE", ())
+                for actuator in self.actuators.values():
+                    self.can.send_frame(actuator.make_disable_frame())
         except Exception as exc:
             logger.warning("Actuator shutdown warning: %s", exc)
         self.processes_supervisor.stop_all(self.config.robot_controller.shutdown_timeout_s)
@@ -246,9 +270,7 @@ class RobotController:
 
         if self.config.shm.unlink_on_shutdown:
             self.shm_manager.unlink_all()
-        self.controller_state = RobotControllerState.STOPPED
-
-
+        self.controller_state = RuntimePhase.STOPPED
 
 
     def _register_callbacks(self) -> None:
@@ -293,35 +315,7 @@ class RobotController:
         return command
 
 
-
-    def _request_imu_on_tick(self) -> None:
-        if self.config.can.imu.enabled and self.config.can.imu.request_all_each_tick:
-            self.can.send_frame(self.imu.make_request_all_frame())
-
-    def _send_disable_all(self) -> None:
-        self._record_output_command("DISABLE", ())
-        for actuator in self.actuators.values():
-            self.can.send_frame(actuator.make_disable_frame())
-
-    def _send_enable_all(self) -> None:
-        self._record_output_command("ENABLE", ())
-        for actuator in self.actuators.values():
-            self.can.send_frame(actuator.make_enable_frame())
-
     def _send_zero_set_all(self, command: OperatorCommandC | None = None) -> None:
-        offsets_by_can_id = self._zero_set_offsets_by_can_id(command)
-        target_can_ids = sorted(offsets_by_can_id) if offsets_by_can_id else sorted(self.actuators)
-        self._record_output_command("ZERO_SET", ())
-        for can_id in target_can_ids:
-            actuator = self.actuators.get(can_id)
-            if actuator is None:
-                logger.warning("Skipping zero-set for unknown actuator CAN ID 0x%03X", can_id)
-                continue
-            offset_deg = float(offsets_by_can_id.get(can_id, 0)) * 0.01
-            self.can.send_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
-
-    @staticmethod
-    def _zero_set_offsets_by_can_id(command: OperatorCommandC | None) -> dict[int, int]:
         if command is None:
             return {}
         count = int(command.zero_target_count)
@@ -341,7 +335,20 @@ class RobotController:
             if can_id == 0:
                 continue
             offsets[can_id] = int(target.offset_count)
-        return offsets
+
+        offsets_by_can_id = offsets
+        target_can_ids = sorted(offsets_by_can_id) if offsets_by_can_id else sorted(self.actuators)
+
+        self._record_output_command("ZERO_SET", ())
+
+        for can_id in target_can_ids:
+            actuator = self.actuators.get(can_id)
+            if actuator is None:
+                logger.warning("Skipping zero-set for unknown actuator CAN ID 0x%03X", can_id)
+                continue
+            offset_deg = float(offsets_by_can_id.get(can_id, 0)) * 0.01
+            self.can.send_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
+
 
     def _send_damping_all(self) -> None:
         kd = float(self.config.safety.velocity_damping_kd)
@@ -497,7 +504,27 @@ class RobotController:
 
         return robot_state
 
+    @property
+    def runtime_phase(self) -> RuntimePhase:
+        return self._runtime_phase
 
+    @runtime_phase.setter
+    def runtime_phase(self, new_phase: RuntimePhase) -> None:
+        old_phase = getattr(self, "_runtime_phase", None)
+
+        if old_phase == new_phase:
+            return
+
+        self._runtime_phase = new_phase
+
+        if old_phase is None:
+            logger.info("Controller runtime phase initialized: %s", new_phase.name)
+        else:
+            logger.info(
+                "Controller runtime phase transition: %s -> %s",
+                old_phase.name,
+                new_phase.name,
+            )
 
 def _quat_xyzw_to_wxyz(
     quat_xyzw: tuple[float, float, float, float] | None,

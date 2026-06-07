@@ -97,7 +97,7 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     config = load_robot_controller_config(args.controller_config)
-    writer = AuxCommandShm.open_writer(config.shm.aux_command.name)
+    writer = AuxCommandShm.open(config.shm.aux_command.name)
     print(f"[aux_reader] publishing aux command shm: {config.shm.aux_command.name}", flush=True)
 
     fd = os.open(args.joystick_dev, os.O_RDONLY | os.O_NONBLOCK)

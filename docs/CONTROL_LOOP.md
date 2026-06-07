@@ -17,7 +17,7 @@
 sequenceDiagram
     participant RC as RobotController.tick
     participant OP as OperatorCommandShm
-    participant SM as ControllerStateMachine
+    participant SM as ControlModeFsm
     participant ACT as Actuator drivers
     participant CMD as ControlCommandShm
     participant PUB as Telemetry publishers

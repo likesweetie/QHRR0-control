@@ -1,6 +1,6 @@
 # Safety Notes
 
-현재 runtime은 `ControllerStateMachine`과 `RobotController.tick()`의 상태별 output rule로 actuator output을 제한한다.
+현재 runtime은 `ControlModeFsm`과 `RobotController.tick()`의 상태별 output rule로 actuator output을 제한한다.
 
 ## Controller Modes
 

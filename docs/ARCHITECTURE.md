@@ -64,7 +64,7 @@ flowchart TB
 | `self.operator_cmd_shm` | `OperatorCommandShm` reader |
 | `self.control_state_shm` | high-rate `RobotStateShm` writer |
 | `self.dashboard_state_shm` | low-rate dashboard `RobotStateShm` writer |
-| `self.state_machine` | `ControllerStateMachine` |
+| `self.state_machine` | `ControlModeFsm` |
 
 Actuator callbacks are registered in `RobotController._register_callbacks()`. Multiple actuator commands are simple for-loops inside `RobotController` private methods. `RobotController` builds `RobotStateC` directly; there is no intermediate `RobotSnapshot` telemetry layer.
 

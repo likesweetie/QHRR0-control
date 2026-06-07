@@ -99,22 +99,7 @@ class CStructShm(Generic[CT]):
         return shm
 
     @classmethod
-    def open_reader(
-        cls,
-        name: str,
-        *,
-        buffer_backend: type[BufferBackend] | None = None,
-        buffer_options: Mapping[str, Any] | None = None,
-    ):
-        return cls(
-            name,
-            create=False,
-            buffer_backend=buffer_backend,
-            buffer_options=buffer_options,
-        )
-
-    @classmethod
-    def open_writer(
+    def open(
         cls,
         name: str,
         *,

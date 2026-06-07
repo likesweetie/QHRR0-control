@@ -10,7 +10,7 @@ from robot_controller.shm.types.operator_command import (
     OperatorCommandShm,
 )
 from robot_controller.controller import RobotController
-from robot_controller.state_machine import ControllerMode, ControllerStateMachine
+from robot_controller.state_machine import ControllerMode, ControlModeFsm
 from robot_controller.subprocesses.dashboard.backend.operator_commands import build_operator_command
 
 
@@ -19,8 +19,8 @@ class OperatorCommandShmTest(unittest.TestCase):
         name = f"qhrr_test_operator_command_{uuid.uuid4().hex}"
         shm = OperatorCommandShm.create(name)
         try:
-            writer = OperatorCommandShm.open_writer(name)
-            reader = OperatorCommandShm.open_reader(name)
+            writer = OperatorCommandShm.open(name)
+            reader = OperatorCommandShm.open(name)
             try:
                 writer.write(
                     build_operator_command(
@@ -95,7 +95,7 @@ class OperatorCommandShmTest(unittest.TestCase):
         command = OperatorCommandC()
         command.timestamp_ns = 123
         command.command = int(OperatorCommandCode.ZERO_SET)
-        state_machine = ControllerStateMachine(
+        state_machine = ControlModeFsm(
             enable_duration_s=0.0,
             mode=ControllerMode.NORMAL,
             mode_enter_time=1.0,

@@ -46,7 +46,7 @@ def build_operator_command(
 class OperatorCommandWriter:
     def __init__(self, name: str, size_bytes: int | None = None, *, source: str = "") -> None:
         del size_bytes, source
-        self.writer = OperatorCommandShm.open_writer(name)
+        self.writer = OperatorCommandShm.open(name)
 
     def close(self) -> None:
         self.writer.close()

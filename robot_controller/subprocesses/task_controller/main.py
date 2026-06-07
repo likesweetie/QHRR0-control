@@ -107,9 +107,9 @@ def main() -> int:
 
     can_ids = [int(can_id) for can_id in controller_config.can.motors.can_ids]
 
-    control_state_reader = RobotStateShm.open_reader(controller_config.shm.control_state.name)
-    aux_reader = AuxCommandShm.open_reader(controller_config.shm.aux_command.name)
-    control_command_writer = ControlCommandShm.open_writer(controller_config.shm.mit_command.name)
+    control_state_reader = RobotStateShm.open(controller_config.shm.control_state.name)
+    aux_reader = AuxCommandShm.open(controller_config.shm.aux_command.name)
+    control_command_writer = ControlCommandShm.open(controller_config.shm.mit_command.name)
     print(
         f"[task_controller] control={controller_config.shm.control_state.name} "
         f"aux={controller_config.shm.aux_command.name} control_cmd={controller_config.shm.mit_command.name}",
