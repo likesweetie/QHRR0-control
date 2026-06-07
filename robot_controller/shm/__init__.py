@@ -1,5 +1,5 @@
 from .aux_command import AuxCommandC, AuxCommandShm
-from .cstruct import CStructShm
+from .cstruct_type import CStructShm
 from .control_command import ControlCommandShm, ControlCommandC, ControlTargetC
 from .operator_command import (
     OperatorCommandC,

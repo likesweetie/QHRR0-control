@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import time
 
-from robot_controller.shm.cstruct import CStructShm
+from robot_controller.shm.cstruct_type import CStructShm
 
 
 class AuxCommandC(ctypes.Structure):

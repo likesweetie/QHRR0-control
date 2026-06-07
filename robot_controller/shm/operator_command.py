@@ -5,7 +5,7 @@ import time
 from collections.abc import Iterable
 from enum import IntEnum
 
-from robot_controller.shm.cstruct import CStructShm
+from robot_controller.shm.cstruct_type import CStructShm
 
 
 class OperatorCommandCode(IntEnum):

@@ -4,7 +4,7 @@ import ctypes
 import time
 from typing import Any
 
-from robot_controller.shm.cstruct import CStructShm
+from robot_controller.shm.cstruct_type import CStructShm
 
 
 MAX_ROBOT_STATE_ACTUATORS = 12

@@ -4,7 +4,7 @@ import ctypes
 import time
 from dataclasses import dataclass
 
-from robot_controller.shm.cstruct import CStructShm
+from robot_controller.shm.cstruct_type import CStructShm
 
 
 MAX_CONTROL_TARGETS = 12
