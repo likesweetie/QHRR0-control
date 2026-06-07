@@ -1,5 +1,4 @@
 # config/app_config/mujoco.yaml
-
 imu_sensors:
   quat_sensor_name: "imu_quat"
   gyro_sensor_name: "imu_gyro"

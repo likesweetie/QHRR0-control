@@ -16,7 +16,7 @@ from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_config
 
 from robot_controller.config import RobotControllerConfig
 from robot_controller.state_machine import ControllerMode, ControlModeFsm
-from robot_controller.supervisor import ProcessSupervisor
+from robot_controller.process_supervisor import ProcessSupervisor
 from robot_controller.shm.manager import ShmManager
 from robot_controller.shm import (
     COMMAND_OUTPUT_SOURCE_VALUES,

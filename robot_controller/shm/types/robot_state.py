@@ -3,10 +3,10 @@ from __future__ import annotations
 import ctypes
 import time
 
-from robot_controller.shm.cstruct_type import CStructShm
+from robot_controller.shm.types.cstruct_type import CStructShm
 
+from .consts import *
 
-MAX_ROBOT_STATE_ACTUATORS = 12
 COMMAND_OUTPUT_SOURCE_NAMES = {
     0: "NONE",
     1: "ENABLE",
@@ -73,11 +73,11 @@ class CommandOutputStateC(ctypes.Structure):
         ("timestamp_monotonic", ctypes.c_double),
         ("source", ctypes.c_uint32),
         ("target_count", ctypes.c_uint32),
-        ("targets", CommandTargetStateC * MAX_ROBOT_STATE_ACTUATORS),
+        ("targets", CommandTargetStateC * MAX_ROBOT_ACTUATORS),
     ]
 
     def valid_target_count(self) -> int:
-        return max(0, min(int(self.target_count), MAX_ROBOT_STATE_ACTUATORS))
+        return max(0, min(int(self.target_count), MAX_ROBOT_ACTUATORS))
 
     def valid_targets(self) -> tuple[CommandTargetStateC, ...]:
         return tuple(self.targets[: self.valid_target_count()])
@@ -92,7 +92,7 @@ class RobotStateC(ctypes.Structure):
         ("controller_mode", ctypes.c_uint32),
         ("actuator_count", ctypes.c_uint32),
         ("imu", ImuStateC),
-        ("actuators", ActuatorStateC * MAX_ROBOT_STATE_ACTUATORS),
+        ("actuators", ActuatorStateC * MAX_ROBOT_ACTUATORS),
         ("command_output", CommandOutputStateC),
     ]
 
@@ -100,7 +100,7 @@ class RobotStateC(ctypes.Structure):
         return int(self.timestamp_ns) != 0
 
     def valid_actuator_count(self) -> int:
-        return max(0, min(int(self.actuator_count), MAX_ROBOT_STATE_ACTUATORS))
+        return max(0, min(int(self.actuator_count), MAX_ROBOT_ACTUATORS))
 
     def valid_actuators(self) -> tuple[ActuatorStateC, ...]:
         return tuple(self.actuators[: self.valid_actuator_count()])
@@ -113,21 +113,5 @@ class RobotStateC(ctypes.Structure):
         return None
 
 
-ROBOT_STATE_SIZE = ctypes.sizeof(RobotStateC)
-
-
 class RobotStateShm(CStructShm[RobotStateC]):
     struct_type = RobotStateC
-
-
-def new_robot_state(mode: int) -> RobotStateC:
-    state = RobotStateC()
-    state.timestamp_ns = time.time_ns()
-    state.timestamp_monotonic = time.monotonic()
-    state.timestamp_unix = time.time()
-    state.controller_mode = int(mode)
-    return state
-
-
-RobotStateShmReader = RobotStateShm
-RobotStateShmWriter = RobotStateShm

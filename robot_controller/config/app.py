@@ -21,7 +21,7 @@ from robot_controller.platform.config import (
     load_robot_platform_config,
 )
 from robot_controller.shm.config import ShmConfig, parse_shm_config
-from robot_controller.supervisor.config import ProcessConfig, load_processes_config
+from robot_controller.process_supervisor.config import ProcessConfig, load_processes_config
 
 
 @dataclass

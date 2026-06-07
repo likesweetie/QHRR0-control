@@ -62,7 +62,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 | `robot_controller/controller.py` | `RobotController` main runtime, state-machine update, direct HAL actuator command dispatch |
 | `robot_controller/state_machine.py` | `ControllerMode` and `OperatorCommandCode` transition policy |
 | `robot_controller/shm/` | SHM base/manager modules plus ctypes-compatible command/state types in `types/` |
-| `robot_controller/supervisor/` | child process lifecycle management |
+| `robot_controller/process_supervisor/` | child process lifecycle management |
 | `robot_controller/subprocesses/` | child process entrypoints: CAN daemon, task controller, dashboard, aux reader |
 | `docs/` | handoff, architecture, safety, runbook 문서 |
 | `config/` | policy/controller 관련 설정 |

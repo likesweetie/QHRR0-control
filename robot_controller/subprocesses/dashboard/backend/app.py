@@ -20,7 +20,7 @@ from .socketcan_io import CAN_FRAME_SIZE, open_can_socket, parse_can_frame
 from .state import MonitorState
 from robot_controller.config import load_config_paths, load_robot_controller_config
 from robot_controller.config.loader import load_yaml_mapping
-from robot_controller.supervisor import ProcessSupervisor
+from robot_controller.process_supervisor import ProcessSupervisor
 from hal.can_bus.process_client import CANProcessClient
 
 
