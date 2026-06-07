@@ -5,6 +5,8 @@ from .operator_command import (
     OperatorCommandCode,
     OperatorCommandShm,
     OperatorCommandShmWriter,
+    OPERATOR_ZERO_TARGET_MAGIC,
+    OperatorZeroTargetC,
 )
 from .robot_state import RobotStateC, RobotStateShm
 
@@ -18,6 +20,8 @@ __all__ = [
     "OperatorCommandCode",
     "OperatorCommandShm",
     "OperatorCommandShmWriter",
+    "OPERATOR_ZERO_TARGET_MAGIC",
+    "OperatorZeroTargetC",
     "RobotStateC",
     "RobotStateShm",
 ]

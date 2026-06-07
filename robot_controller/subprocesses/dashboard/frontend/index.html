@@ -80,12 +80,6 @@
           <button id="txToggle" class="button danger">Unlock TX</button>
         </div>
 
-        <div class="control-row">
-          <label for="pollHz">IMU Hz</label>
-          <input id="pollHz" type="number" min="0.1" max="1000" step="1" value="100" />
-          <button id="pollToggle" class="button primary">Start Poll</button>
-        </div>
-
         <form id="rawForm" class="command-form">
           <label>
             CAN ID
@@ -117,6 +111,14 @@
           </label>
           <button id="zeroSetSubmit" class="button secondary" type="submit">Send Zero</button>
         </form>
+
+        <div id="zeroSetPresetPanel" class="zero-set-presets" hidden>
+          <div class="transmit-subhead">
+            <strong>Zero Set Presets</strong>
+            <span id="zeroSetPresetStateBadge" class="badge muted">NORMAL only</span>
+          </div>
+          <div id="zeroSetPresetButtons" class="preset-button-grid"></div>
+        </div>
 
         <p id="commandMessage" class="message-line"></p>
       </section>
@@ -261,6 +263,6 @@
       </section>
     </main>
 
-    <script src="/static/app.js?v=20260527-zero-offset-panel"></script>
+    <script src="/static/app.js?v=20260529-shm-monitor"></script>
   </body>
 </html>

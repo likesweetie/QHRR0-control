@@ -309,8 +309,8 @@ class SPGActuatorProtocol(ActuatorProtocolBase):
         )
         return CANFrame(can_id=self.command_id, data=payload)
 
-    def encode_zero_position_frame(self) -> CANFrame:
-        return self.encode_mit_set_zero_frame(offset_deg=0.0)
+    def encode_zero_position_frame(self, offset_deg: float = 0.0) -> CANFrame:
+        return self.encode_mit_set_zero_frame(offset_deg=offset_deg)
 
     # ------------------------------------------------------------------
     # SPG-specific command encoders

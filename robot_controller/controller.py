@@ -12,7 +12,14 @@ from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_platform
 
 from robot_controller.core.config import RobotControllerConfig
 from robot_controller.core.state import RobotControllerState
-from robot_controller.shm import ControlCommandC, ControlCommandShm, OperatorCommandShm
+from robot_controller.shm import (
+    OPERATOR_ZERO_TARGET_MAGIC,
+    ControlCommandC,
+    ControlCommandShm,
+    OperatorCommandC,
+    OperatorCommandCode,
+    OperatorCommandShm,
+)
 from robot_controller.state_machine import ControllerMode, ControllerStateMachine
 from robot_controller.supervisor import ProcessSupervisor
 from robot_controller.telemetry import (
@@ -55,6 +62,8 @@ class RobotController:
         self._last_output_source = "NONE"
         self._last_output_t = 0.0
         self._last_output_targets: tuple[CommandTargetSnapshot, ...] = ()
+        self._last_consumed_operator_timestamp_ns: int | None = None
+        self._last_ignored_operator_timestamp_ns: int | None = None
         self._running = False
 
     def start(self) -> None:
@@ -117,6 +126,7 @@ class RobotController:
 
         assert self.operator_cmd_shm is not None
         op = self.operator_cmd_shm.read_relaxed()
+        op = self._consume_operator_command(op)
         mode = self.state_machine.update(op, now)
 
         if mode == ControllerMode.ESTOP:
@@ -132,7 +142,7 @@ class RobotController:
             return self._publish_state()
 
         if mode == ControllerMode.ZERO_SETTING:
-            self._send_zero_set_all()
+            self._send_zero_set_all(op)
             return self._publish_state()
 
         if mode == ControllerMode.DAMPING:
@@ -238,6 +248,32 @@ class RobotController:
             return
         driver.on_frame(frame)
 
+    def _consume_operator_command(self, command: OperatorCommandC) -> OperatorCommandC:
+        try:
+            code = OperatorCommandCode(int(command.command))
+        except ValueError:
+            return command
+        if code == OperatorCommandCode.NONE:
+            return command
+
+        timestamp_ns = int(command.timestamp_ns)
+        if timestamp_ns == self._last_consumed_operator_timestamp_ns:
+            if timestamp_ns != self._last_ignored_operator_timestamp_ns:
+                logger.warning(
+                    "Ignoring already-consumed operator command: code=%s timestamp_ns=%d",
+                    code.name,
+                    timestamp_ns,
+                )
+                self._last_ignored_operator_timestamp_ns = timestamp_ns
+            released = OperatorCommandC()
+            released.timestamp_ns = command.timestamp_ns
+            released.command = int(OperatorCommandCode.NONE)
+            return released
+
+        self._last_consumed_operator_timestamp_ns = timestamp_ns
+        self._last_ignored_operator_timestamp_ns = None
+        return command
+
     def _bringup_imu(self) -> None:
         if not self.config.can.imu.enabled:
             return
@@ -261,10 +297,40 @@ class RobotController:
         for actuator in self.actuators.values():
             self.can.send_frame(actuator.make_enable_frame())
 
-    def _send_zero_set_all(self) -> None:
+    def _send_zero_set_all(self, command: OperatorCommandC | None = None) -> None:
+        offsets_by_can_id = self._zero_set_offsets_by_can_id(command)
+        target_can_ids = sorted(offsets_by_can_id) if offsets_by_can_id else sorted(self.actuators)
         self._record_output_command("ZERO_SET", ())
-        for actuator in self.actuators.values():
-            self.can.send_frame(actuator.make_zero_position_frame())
+        for can_id in target_can_ids:
+            actuator = self.actuators.get(can_id)
+            if actuator is None:
+                logger.warning("Skipping zero-set for unknown actuator CAN ID 0x%03X", can_id)
+                continue
+            offset_deg = float(offsets_by_can_id.get(can_id, 0)) * 0.01
+            self.can.send_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
+
+    @staticmethod
+    def _zero_set_offsets_by_can_id(command: OperatorCommandC | None) -> dict[int, int]:
+        if command is None:
+            return {}
+        count = int(command.zero_target_count)
+        if count == 0:
+            return {}
+        if int(command.zero_target_magic) != OPERATOR_ZERO_TARGET_MAGIC:
+            raise RuntimeError("Malformed ZERO_SET operator command: invalid zero target magic")
+        if count > len(command.zero_targets):
+            raise RuntimeError(
+                f"Malformed ZERO_SET operator command: target count {count} exceeds "
+                f"capacity {len(command.zero_targets)}"
+            )
+        offsets: dict[int, int] = {}
+        for index in range(count):
+            target = command.zero_targets[index]
+            can_id = int(target.can_id)
+            if can_id == 0:
+                continue
+            offsets[can_id] = int(target.offset_count)
+        return offsets
 
     def _send_damping_all(self) -> None:
         kd = float(self.config.safety.velocity_damping_kd)

@@ -7,10 +7,12 @@ Web-based SocketCAN dashboard for monitoring QHRR CAN traffic.
 - Real-time CAN bus load, RX/TX rate, estimated kbps, and total counters
 - CAN node table with heartbeat Hz, last seen age, and timeout status
 - E2Box IMU decode for quaternion, projected gravity, and gyro
+- SHM-backed robot/controller state display without dashboard-driven IMU requests
 - SPG/MIT actuator status table for motor nodes
 - Raw CAN transmit panel
 - TX safety lock enabled by default
-- Motor enter/exit/zero endpoints gated by `allow_motor_commands`
+- Motor enter/exit endpoints gated by `allow_motor_commands`
+- Zero set buttons publish `ZERO_SET` through `OperatorCommandShm`
 
 ## Layout
 
@@ -94,9 +96,10 @@ For real robot CAN, keep TX locked by default and leave `allow_motor_commands: f
 ## Command Safety
 
 - TX starts locked.
-- Raw frame send, IMU polling, and motor commands require TX unlock.
+- Raw frame send, MIT polling, and motor commands require TX unlock.
 - Unlock requires typing `UNLOCK` in the browser prompt.
-- Motor enter/exit/zero also require `allow_motor_commands: true`.
+- Motor enter/exit also require `allow_motor_commands: true`.
+- Zero set buttons use the robot controller state machine through `OperatorCommandShm` and require controller `NORMAL`.
 - Continuous MIT control (`0xC0`) is not exposed by this dashboard.
 
 ## Quick Checks
@@ -118,5 +121,5 @@ Expected dashboard updates:
 
 - Node heartbeat rows become online.
 - Motor 1 shows `MIT_ENTER_ACK`.
-- IMU counters and decoded values update.
+- IMU counters and decoded values update when IMU frames are produced by the robot side.
 - CAN load bar increases with traffic rate.

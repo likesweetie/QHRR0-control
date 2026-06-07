@@ -42,7 +42,6 @@ def monitor_state() -> MonitorState:
         imu_request_id=0x221,
         imu_quat_id=0x2A1,
         imu_gyro_id=0x321,
-        imu_cmd_get_all=0x03,
         imu_quat_scale=10000.0,
         imu_gyro_scale=100.0,
         imu_normalize_quat=True,

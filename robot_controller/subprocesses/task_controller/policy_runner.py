@@ -85,13 +85,13 @@ def load_policies(project_root_path: Path, policy_config_dir: Path) -> list[Onnx
 
 
 def action_offset(policy: OnnxPolicy, robot_name: str, q: np.ndarray, mode: bool) -> np.ndarray:
-    defaults = np.asarray([float(value) for value in policy.config["default_joint_angle"]], dtype=np.float64)
+    defaults = np.asarray([float(value) for value in policy.config["default_joint_angle"]], dtype=np.float32)
     defaults = defaults[: len(q)]
     if robot_name in {"qhrr", "qhrr1"}:
         # print(defaults)
         return defaults
     # if robot_name == "rbq":
-    #     quad = np.resize(np.asarray([0.0, 0.7, -1.4], dtype=np.float64), len(q))
+    #     quad = np.resize(np.asarray([0.0, 0.7, -1.4], dtype=np.float32), len(q))
     #     alpha = max(0.0, min(1.0, -policy.projected_gravity[2]))
     #     beta = max(0.0, min(1.0, -policy.projected_gravity[0])) * float(mode)
     #     return alpha * (quad - q) + beta * (defaults - q) + q
@@ -124,9 +124,9 @@ def _quat_to_projected_gravity(quat_wxyz: list[float]) -> np.ndarray:
             [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
             [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
         ],
-        dtype=np.float64,
+        dtype=np.float32,
     )
-    pg = rotation.T @ np.array([0.0, 0.0, -1.0], dtype=np.float64)
+    pg = rotation.T @ np.array([0.0, 0.0, -1.0], dtype=np.float32)
     return np.array([pg[0], pg[1], pg[2]])
 
 
@@ -145,18 +145,18 @@ class OnnxPolicy:
         self.input_indices = [int(value) for value in conversion["input"]]
         self.output_indices = [int(value) for value in conversion["output"]]
         defaults = [float(value) for value in self.config["default_joint_angle"]]
-        self.default_joint_angle = np.array([defaults[index] for index in self.input_indices], dtype=np.float64)
-        self.dof_pos = np.zeros(self.num_joint, dtype=np.float64)
-        self.dof_vel = np.zeros(self.num_joint, dtype=np.float64)
-        self.delta_dof_pos = np.zeros(self.num_joint, dtype=np.float64)
-        self.actions = np.zeros(self.num_joint, dtype=np.float64)
-        self.scaled_actions = np.zeros(self.num_joint, dtype=np.float64)
-        self.last_actions = np.zeros(self.num_joint, dtype=np.float64)
-        self.last_last_actions = np.zeros(self.num_joint, dtype=np.float64)
-        self.last_last_last_actions = np.zeros(self.num_joint, dtype=np.float64)
-        self.base_ang_vel = np.zeros(3, dtype=np.float64)
-        self.projected_gravity = np.array([0.0, 0.0, -1.0], dtype=np.float64)
-        self.commands = np.zeros(3, dtype=np.float64)
+        self.default_joint_angle = np.array([defaults[index] for index in self.input_indices], dtype=np.float32)
+        self.dof_pos = np.zeros(self.num_joint, dtype=np.float32)
+        self.dof_vel = np.zeros(self.num_joint, dtype=np.float32)
+        self.delta_dof_pos = np.zeros(self.num_joint, dtype=np.float32)
+        self.actions = np.zeros(self.num_joint, dtype=np.float32)
+        self.scaled_actions = np.zeros(self.num_joint, dtype=np.float32)
+        self.last_actions = np.zeros(self.num_joint, dtype=np.float32)
+        self.last_last_actions = np.zeros(self.num_joint, dtype=np.float32)
+        self.last_last_last_actions = np.zeros(self.num_joint, dtype=np.float32)
+        self.base_ang_vel = np.zeros(3, dtype=np.float32)
+        self.projected_gravity = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+        self.commands = np.zeros(3, dtype=np.float32)
         self.mode = False
         self.obs_components = self._obs_components()
         self.obs_scales = self._obs_scales()
@@ -168,8 +168,8 @@ class OnnxPolicy:
         self.cnt = 0
 
     def set_state(self, dof_pos: np.ndarray, dof_vel: np.ndarray, quat_wxyz: list[float], ang_vel: np.ndarray) -> None:
-        self.dof_pos[:] = np.array([dof_pos[index] for index in self.input_indices], dtype=np.float64)
-        self.dof_vel[:] = np.array([dof_vel[index] for index in self.input_indices], dtype=np.float64)
+        self.dof_pos[:] = np.array([dof_pos[index] for index in self.input_indices], dtype=np.float32)
+        self.dof_vel[:] = np.array([dof_vel[index] for index in self.input_indices], dtype=np.float32)
         if self.obs_type == 1:
             self.delta_dof_pos[:] = self.dof_pos
         else:
@@ -185,7 +185,7 @@ class OnnxPolicy:
         self.cnt += 1
         # print(f"[task_controller] Compute action call {self.cnt}")
         output = self.session.run([self.output_name], {self.input_name: self._observation()})[0]
-        raw = np.asarray(output, dtype=np.float64).reshape(-1)[: self.num_joint]
+        raw = np.asarray(output, dtype=np.float32).reshape(-1)[: self.num_joint]
         self.actions[:] = np.clip(raw, -self.action_clip, self.action_clip)
         scaled_original = self.actions * self.action_scale
         for out_index, src_index in enumerate(self.output_indices):

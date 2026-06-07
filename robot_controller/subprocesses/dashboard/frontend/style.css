@@ -946,7 +946,8 @@ select {
 .motor-actions,
 .operator-actions,
 .command-form,
-.zero-set-form {
+.zero-set-form,
+.zero-set-presets {
   display: grid;
   gap: 10px;
   margin-top: 12px;
@@ -967,6 +968,29 @@ select {
   align-items: end;
   padding-top: 12px;
   border-top: 1px solid var(--hairline);
+}
+
+.zero-set-presets {
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.zero-set-presets[hidden] {
+  display: none;
+}
+
+.preset-button-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.zero-preset-button {
+  width: 100%;
+  min-height: 44px;
+  white-space: normal;
+  line-height: 1.3;
+  text-align: left;
 }
 
 .transmit-subhead {

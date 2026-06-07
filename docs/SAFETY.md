@@ -10,8 +10,10 @@
 | `ENABLING` | `ENABLE` from `DISABLED` or `ZERO_SETTING` | enable all only |
 | `DAMPING` | `ENABLING` duration elapsed, or `DAMPING` operator command | damping-like MIT command only |
 | `NORMAL` | `RUN` from `DAMPING` | policy command only |
-| `ZERO_SETTING` | `ZERO_SET` operator command | zero set all only; `NONE` returns to `DISABLED` |
+| `ZERO_SETTING` | `ZERO_SET` operator command | zero set only, using optional SHM target offsets; `NONE` returns to `DISABLED` |
 | `ESTOP` | `ESTOP` operator command | disable all only, latched |
+
+Non-`NONE` operator commands are consumed once per `timestamp_ns`; repeated SHM values are treated as `NONE` and logged.
 
 ```mermaid
 stateDiagram-v2

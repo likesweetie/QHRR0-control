@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .command_api import CommandError, CommandService
 from .robot_state_shm import DashboardRobotStateReader
@@ -43,10 +43,6 @@ class RawSendRequest(BaseModel):
     data: str
 
 
-class ImuHzRequest(BaseModel):
-    hz: float
-
-
 class MotorZeroRequest(BaseModel):
     offset_count: int | None = None
     offset_deg: float | None = None
@@ -59,6 +55,14 @@ class MotorZeroRequest(BaseModel):
         if self.offset_count is not None:
             return int(self.offset_count)
         return 0
+
+
+class OperatorZeroTargetRequest(MotorZeroRequest):
+    can_id: int | str
+
+
+class OperatorZeroSetRequest(BaseModel):
+    targets: list[OperatorZeroTargetRequest] = Field(default_factory=list)
 
 
 class ConfirmRequest(BaseModel):
@@ -120,19 +124,99 @@ def resolve_transmit_ids(config: dict[str, Any], platform) -> None:
         if not isinstance(item, dict):
             raise ValueError(f"dashboard.transmit_ids[{index}] must be a mapping")
         if "can_id" in item:
-            raise ValueError(f"dashboard.transmit_ids[{index}].can_id must come from platform_ref or actuator")
+            raise ValueError(f"dashboard.transmit_ids[{index}].can_id must come from actuator")
         output = dict(item)
-        if item.get("platform_ref") == "imu_request":
-            output["can_id"] = platform.imu.request_id
-        elif "actuator" in item:
-            name = str(item["actuator"])
-            if name not in actuators:
-                raise ValueError(f"dashboard.transmit_ids[{index}] references unknown actuator: {name}")
-            output["can_id"] = actuators[name]
-        else:
-            raise ValueError(f"dashboard.transmit_ids[{index}] requires platform_ref or actuator")
+        if "platform_ref" in item:
+            raise ValueError(
+                f"dashboard.transmit_ids[{index}].platform_ref is not supported; "
+                "dashboard transmit presets must reference an actuator"
+            )
+        if "actuator" not in item:
+            raise ValueError(f"dashboard.transmit_ids[{index}] requires actuator")
+        name = str(item["actuator"])
+        if name not in actuators:
+            raise ValueError(f"dashboard.transmit_ids[{index}] references unknown actuator: {name}")
+        output["can_id"] = actuators[name]
         resolved.append(output)
     dashboard["transmit_ids"] = resolved
+
+
+def resolve_zero_set_presets(config: dict[str, Any], platform) -> None:
+    dashboard = require_section(config, "dashboard")
+    raw = dashboard.get("zero_set_presets", [])
+    if raw is None:
+        raw = []
+    if not isinstance(raw, list):
+        raise ValueError("Dashboard config key 'dashboard.zero_set_presets' must be a list")
+
+    actuators = {actuator.name: actuator.can_id for actuator in platform.enabled_actuators}
+    resolved = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"dashboard.zero_set_presets[{index}] must be a mapping")
+        targets_raw = item.get("targets")
+        if not isinstance(targets_raw, list) or not targets_raw:
+            raise ValueError(f"dashboard.zero_set_presets[{index}].targets must be a non-empty list")
+
+        targets = []
+        for target_index, target in enumerate(targets_raw):
+            if not isinstance(target, dict):
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] must be a mapping"
+                )
+            if "can_id" in target:
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}].can_id "
+                    "must come from actuator"
+                )
+            if "actuator" not in target:
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] requires actuator"
+                )
+            name = str(target["actuator"])
+            if name not in actuators:
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    f"references unknown actuator: {name}"
+                )
+            if "offset_count" in target and "offset_deg" in target:
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    "must use either offset_count or offset_deg, not both"
+                )
+            if "offset_deg" in target:
+                offset_deg = float(target["offset_deg"])
+                offset_count = round_half_away_from_zero(offset_deg * 100.0)
+            elif "offset_count" in target:
+                offset_count = int(target["offset_count"])
+                offset_deg = offset_count * 0.01
+            else:
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    "requires offset_deg or offset_count"
+                )
+            if not (-32768 <= offset_count <= 32767):
+                raise ValueError(
+                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    f"offset_count out of int16 range: {offset_count}"
+                )
+            targets.append(
+                {
+                    "actuator": name,
+                    "can_id": actuators[name],
+                    "offset_deg": offset_deg,
+                    "offset_count": offset_count,
+                }
+            )
+
+        resolved.append(
+            {
+                "id": str(item.get("id") or f"preset_{index + 1}"),
+                "label": str(item.get("label") or f"Preset {index + 1}"),
+                "targets": targets,
+            }
+        )
+    dashboard["zero_set_presets"] = resolved
 
 
 def load_config() -> tuple[dict[str, Any], Any]:
@@ -161,6 +245,7 @@ def load_config() -> tuple[dict[str, Any], Any]:
 
     config = dict(raw)
     resolve_transmit_ids(config, platform)
+    resolve_zero_set_presets(config, platform)
     config.pop("platform_config", None)
     config.pop("robot_controller_config", None)
     config.setdefault("can", {})
@@ -177,7 +262,6 @@ def load_config() -> tuple[dict[str, Any], Any]:
     config["imu"]["request_id"] = platform.imu.request_id
     config["imu"]["quat_id"] = platform.imu.quat_id
     config["imu"]["gyro_id"] = platform.imu.gyro_id
-    config["imu"]["cmd_get_all"] = platform.imu.cmd_get_all
     config["imu"]["quat_scale"] = platform.imu.quat_scale
     config["imu"]["gyro_scale"] = platform.imu.gyro_scale
     config["imu"]["normalize_quat"] = platform.imu.normalize_quat
@@ -277,14 +361,12 @@ def make_state(config: dict[str, Any]) -> MonitorState:
         imu_request_id=parse_int_maybe_hex(nested(config, "imu", "request_id")),
         imu_quat_id=parse_int_maybe_hex(nested(config, "imu", "quat_id")),
         imu_gyro_id=parse_int_maybe_hex(nested(config, "imu", "gyro_id")),
-        imu_cmd_get_all=parse_int_maybe_hex(nested(config, "imu", "cmd_get_all")),
         imu_quat_scale=float(nested(config, "imu", "quat_scale")),
         imu_gyro_scale=float(nested(config, "imu", "gyro_scale")),
         imu_normalize_quat=bool(nested(config, "imu", "normalize_quat")),
         actuator_configs=load_actuator_configs(config),
         tx_enabled=bool(nested(config, "safety", "tx_enabled_by_default")),
         allow_actuator_commands=bool(nested(config, "safety", "allow_actuator_commands")),
-        imu_poll_hz=require_hz(nested(config, "imu", "default_poll_hz"), "imu.default_poll_hz"),
         mit_poll_hz=require_hz(nested(config, "spg", "default_mit_poll_hz"), "spg.default_mit_poll_hz"),
     )
 
@@ -309,6 +391,19 @@ def round_half_away_from_zero(value: float) -> int:
     if value >= 0.0:
         return int(value + 0.5)
     return int(value - 0.5)
+
+
+def publish_operator_zero_set(targets: list[tuple[int, int]]) -> int:
+    commands.require_controller_state(
+        action_name="Operator zero set",
+        allowed_states={"NORMAL"},
+    )
+    for can_id, offset_count in targets:
+        if state.actuator_config_for_can_id(can_id) is None:
+            raise ValueError(f"Unknown actuator CAN ID 0x{can_id:03X}")
+        if not (-32768 <= int(offset_count) <= 32767):
+            raise ValueError(f"MIT zero offset_count out of int16 range: {offset_count}")
+    return operator_commands.publish_zero_set(targets)
 
 
 config, controller_config = load_config()
@@ -447,30 +542,6 @@ async def socketcan_loop() -> None:
         await asyncio.sleep(0 if frames_read else 0.001)
 
 
-async def imu_poll_loop() -> None:
-    next_send_t = asyncio.get_running_loop().time()
-    while True:
-        if state.imu_polling:
-            hz = float(state.imu_poll_hz)
-            period_s = 1.0 / hz
-            now = asyncio.get_running_loop().time()
-            if now < next_send_t:
-                await asyncio.sleep(next_send_t - now)
-
-            try:
-                commands.request_imu_all()
-            except CommandError as exc:
-                state.socket_error = str(exc)
-
-            now = asyncio.get_running_loop().time()
-            next_send_t += period_s
-            if next_send_t < now:
-                next_send_t = now + period_s
-        else:
-            next_send_t = asyncio.get_running_loop().time()
-            await asyncio.sleep(0.05)
-
-
 async def mit_poll_loop() -> None:
     next_send_t = asyncio.get_running_loop().time()
     while True:
@@ -500,7 +571,6 @@ async def mit_poll_loop() -> None:
 async def startup() -> None:
     app.state.tasks = [
         asyncio.create_task(socketcan_loop()),
-        asyncio.create_task(imu_poll_loop()),
         asyncio.create_task(mit_poll_loop()),
     ]
 
@@ -582,27 +652,6 @@ async def tx_unlock() -> dict:
     return {"ok": True, "tx_enabled": state.tx_enabled}
 
 
-@app.post("/api/imu/poll/start")
-async def imu_poll_start() -> dict:
-    state.imu_polling = True
-    return {"ok": True, "imu_polling": state.imu_polling}
-
-
-@app.post("/api/imu/poll/stop")
-async def imu_poll_stop() -> dict:
-    state.imu_polling = False
-    return {"ok": True, "imu_polling": state.imu_polling}
-
-
-@app.post("/api/imu/poll/hz")
-async def imu_poll_hz(req: ImuHzRequest) -> dict:
-    try:
-        state.imu_poll_hz = require_hz(req.hz, "imu_poll_hz")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "imu_poll_hz": state.imu_poll_hz}
-
-
 @app.post("/api/can/send")
 async def can_send(req: RawSendRequest) -> dict:
     try:
@@ -648,6 +697,24 @@ async def operator_damping() -> dict:
     return {"ok": True, "command_id": command_id}
 
 
+@app.post("/api/operator/zero-set")
+async def operator_zero_set(req: OperatorZeroSetRequest | None = None) -> dict:
+    try:
+        targets: list[tuple[int, int]] = []
+        request_targets = [] if req is None else req.targets
+        for target in request_targets:
+            can_id = parse_can_id(target.can_id)
+            targets.append((can_id, target.resolved_offset_count()))
+        command_id = publish_operator_zero_set(targets)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except CommandError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
+
+
 @app.post("/api/operator/estop")
 async def operator_estop() -> dict:
     try:
@@ -679,12 +746,14 @@ async def motor_exit(can_id: str) -> dict:
 async def motor_zero(can_id: str, req: MotorZeroRequest) -> dict:
     try:
         offset_count = req.resolved_offset_count()
-        tx = commands.motor_zero(parse_can_id(can_id), offset_count)
+        command_id = publish_operator_zero_set([(parse_can_id(can_id), offset_count)])
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except (CommandError, OSError) as exc:
+    except CommandError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    return {"ok": True, "tx": tx}
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "command_id": command_id}
 
 
 @app.post("/api/actuator/{can_id}/mit-poll/start")

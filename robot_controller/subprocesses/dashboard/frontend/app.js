@@ -358,13 +358,14 @@ function renderMotors(motors, safety, controllerState) {
       const blockedEnable = button.dataset.motorAction === "toggle-enable"
         && button.dataset.nextAction === "enter"
         && enableBlocked;
-      const blockedZero = button.dataset.motorAction === "zero"
+      const isZeroAction = button.dataset.motorAction === "zero";
+      const blockedZero = isZeroAction
         && controllerState !== "NORMAL";
-      button.classList.toggle("gated", motorGated || blockedEnable || blockedZero);
+      button.classList.toggle("gated", (!isZeroAction && motorGated) || blockedEnable || blockedZero);
       button.title = blockedEnable
         ? `Enable blocked while controller is ${controllerState}`
-        : blockedZero ? "Zero set is available only while controller is NORMAL"
-        : motorGated ? "Requires TX unlock and allow_actuator_commands=true" : "";
+      : blockedZero ? "Zero set is available only while controller is NORMAL"
+        : (!isZeroAction && motorGated) ? "Requires TX unlock and allow_actuator_commands=true" : "";
     });
   });
 
@@ -659,8 +660,6 @@ function syncControls(state) {
     $("txToggle").textContent = state.safety.tx_enabled ? "Lock TX" : "Unlock TX";
     $("txToggle").className = state.safety.tx_enabled ? "button secondary" : "button danger";
   }
-  if ($("pollToggle")) $("pollToggle").textContent = state.controls.imu_polling ? "Stop Poll" : "Start Poll";
-  if ($("pollHz")) $("pollHz").value = state.controls.imu_poll_hz || $("pollHz").value;
 }
 
 function offsetDegToCount(value) {
@@ -681,24 +680,33 @@ function updateZeroSetPreview() {
 function syncZeroSetControls(state) {
   if (!$("zeroSetForm")) return;
   const stateName = controllerSafetyState(state);
-  const txEnabled = state && state.safety && state.safety.tx_enabled === true;
   const count = updateZeroSetPreview();
   const countValid = count !== null && count >= -32768 && count <= 32767;
-  const canSend = stateName === "NORMAL" && txEnabled && countValid;
+  const canSend = stateName === "NORMAL" && countValid;
   const select = $("zeroSetActuator");
   const submit = $("zeroSetSubmit");
   const badge = $("zeroSetStateBadge");
+  const presetBadge = $("zeroSetPresetStateBadge");
+  const presetCanSend = stateName === "NORMAL";
 
   if (badge) {
-    badge.textContent = stateName === "NORMAL" ? (txEnabled ? "NORMAL" : "TX locked") : `${stateName} blocked`;
-    badge.className = stateName === "NORMAL" && txEnabled ? "badge ok" : "badge warn";
+    badge.textContent = stateName === "NORMAL" ? "NORMAL" : `${stateName} blocked`;
+    badge.className = stateName === "NORMAL" ? "badge ok" : "badge warn";
   }
   if (submit) {
     submit.disabled = !canSend || !select || !select.value;
     submit.title = canSend
       ? ""
-      : countValid ? "Zero set is available only in NORMAL with TX unlocked" : "Offset count must fit int16";
+      : countValid ? "Zero set is available only while controller is NORMAL" : "Offset count must fit int16";
   }
+  if (presetBadge) {
+    presetBadge.textContent = presetCanSend ? "NORMAL" : `${stateName} blocked`;
+    presetBadge.className = presetCanSend ? "badge ok" : "badge warn";
+  }
+  document.querySelectorAll("[data-zero-preset]").forEach((button) => {
+    button.disabled = !presetCanSend || button.dataset.busy === "true";
+    button.title = presetCanSend ? "" : "Zero set preset is available only while controller is NORMAL";
+  });
 }
 
 function syncOperatorControls(state) {
@@ -756,6 +764,7 @@ async function loadDashboardConfig() {
   dashboardConfig = await response.json();
   populateTransmitIds(dashboardConfig);
   populateZeroSetActuators(dashboardConfig);
+  populateZeroSetPresets(dashboardConfig);
 }
 
 function populateTransmitIds(config) {
@@ -769,11 +778,11 @@ function populateTransmitIds(config) {
 
   if (!entries.length) {
     const option = document.createElement("option");
-    option.value = "0x221";
-    option.textContent = "E2Box request (0x221)";
-    option.dataset.payload = "03";
+    option.value = "";
+    option.textContent = "No transmit presets";
+    option.disabled = true;
     select.appendChild(option);
-    $("rawPayload").value = "03";
+    if ($("rawPayload")) $("rawPayload").value = "";
     return;
   }
 
@@ -804,6 +813,32 @@ function populateZeroSetActuators(config) {
     option.value = canId;
     option.textContent = `${actuator.name || canId} (${canId})`;
     select.appendChild(option);
+  });
+
+  syncZeroSetControls(latestState || {});
+}
+
+function populateZeroSetPresets(config) {
+  const panel = $("zeroSetPresetPanel");
+  const container = $("zeroSetPresetButtons");
+  if (!panel || !container) return;
+  const presets = (config.dashboard && Array.isArray(config.dashboard.zero_set_presets))
+    ? config.dashboard.zero_set_presets
+    : [];
+
+  container.innerHTML = "";
+  panel.hidden = presets.length === 0;
+  presets.forEach((preset, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button secondary zero-preset-button";
+    button.dataset.zeroPreset = preset.id || `preset_${index + 1}`;
+    button.dataset.targets = JSON.stringify((preset.targets || []).map((target) => ({
+      can_id: hexCanId(target.can_id),
+      offset_count: target.offset_count,
+    })));
+    button.textContent = preset.label || `Preset ${index + 1}`;
+    container.appendChild(button);
   });
 
   syncZeroSetControls(latestState || {});
@@ -841,7 +876,7 @@ async function sendMotorAction(button) {
 
     await postJson(`/api/actuator/${canId}/${apiAction}`, apiAction === "zero" ? { offset_count: 0 } : {});
     const label = apiAction === "enter" ? "enable" : apiAction === "exit" ? "disable" : "zero set";
-    showMessage(`${canId} ${label} sent`);
+    showMessage(`${canId} ${label} ${apiAction === "zero" ? "requested" : "sent"}`);
   } catch (error) {
     showMessage(error.message, true);
   } finally {
@@ -913,9 +948,28 @@ function bindControls() {
         const offsetDeg = Number($("zeroSetOffsetDeg").value);
         await postJson(`/api/actuator/${canId}/zero`, { offset_deg: offsetDeg });
         const count = updateZeroSetPreview();
-        showMessage(`${canId} zero set sent (${fmt.maybe(offsetDeg, 2)} deg / ${count})`);
+        showMessage(`${canId} zero set requested (${fmt.maybe(offsetDeg, 2)} deg / ${count})`);
       } catch (error) {
         showMessage(error.message, true);
+      }
+    });
+  }
+
+  if ($("zeroSetPresetButtons")) {
+    $("zeroSetPresetButtons").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-zero-preset]");
+      if (!button || button.disabled || button.dataset.busy === "true") return;
+      button.dataset.busy = "true";
+      syncZeroSetControls(latestState || {});
+      try {
+        const targets = JSON.parse(button.dataset.targets || "[]");
+        await postJson("/api/operator/zero-set", { targets });
+        showMessage(`${button.textContent} zero set requested`);
+      } catch (error) {
+        showMessage(error.message, true);
+      } finally {
+        button.dataset.busy = "false";
+        syncZeroSetControls(latestState || {});
       }
     });
   }
@@ -930,24 +984,6 @@ function bindControls() {
         }
         await postJson("/api/tx/unlock");
         showMessage("TX enabled");
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    });
-  }
-
-  if ($("pollToggle")) {
-    $("pollToggle").addEventListener("click", async () => {
-      try {
-        const hz = Number($("pollHz").value);
-        await postJson("/api/imu/poll/hz", { hz });
-        if (latestState && latestState.controls && latestState.controls.imu_polling) {
-          await postJson("/api/imu/poll/stop");
-          showMessage("IMU polling stopped");
-        } else {
-          await postJson("/api/imu/poll/start");
-          showMessage("IMU polling started");
-        }
       } catch (error) {
         showMessage(error.message, true);
       }

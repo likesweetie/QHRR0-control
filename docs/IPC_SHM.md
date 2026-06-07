@@ -42,16 +42,29 @@ class ControlCommandC(ctypes.Structure):
 ## OperatorCommandShm
 
 ```python
+class OperatorZeroTargetC(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("can_id", ctypes.c_uint32),
+        ("offset_count", ctypes.c_int16),
+        ("reserved", ctypes.c_uint16),
+    ]
+
 class OperatorCommandC(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("timestamp_ns", ctypes.c_uint64),
         ("command", ctypes.c_uint32),
         ("target_mask", ctypes.c_uint32),
+        ("zero_target_count", ctypes.c_uint32),
+        ("zero_target_magic", ctypes.c_uint32),
+        ("zero_targets", OperatorZeroTargetC * 12),
     ]
 ```
 
 `command` uses `OperatorCommandCode`: `NONE`, `ENABLE`, `DISABLE`, `DAMPING`, `ZERO_SET`, `ESTOP`, `RESET_FAULT`, `RUN`.
+For `ZERO_SET`, `zero_targets` may carry per-actuator `can_id` plus signed int16 centidegree `offset_count`; the controller uses those offsets only when `zero_target_magic` is valid.
+`timestamp_ns` is the command id for controller-side one-shot consumption; repeated non-`NONE` commands with the same timestamp are treated as `NONE`.
 
 ## RobotStateShm
 

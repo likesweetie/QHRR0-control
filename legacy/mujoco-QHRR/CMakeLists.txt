@@ -12,7 +12,7 @@ set(ONNX_DIR ${THIRD_PARTY_DIR}/onnxruntime)
 
 find_package(PkgConfig REQUIRED)
 find_package(yaml-cpp REQUIRED)
-find_package(Eigen3 REQUIRED)
+# find_package(Eigen3 REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)
 
 add_executable(daemon
@@ -27,30 +27,30 @@ target_link_libraries(daemon PRIVATE
     pthread
 )
 
-add_executable(task_controller
-    app/task_controller/main.cpp
-    app/task_controller/task_controller.cpp
-    app/task_controller/onnx_runner.cpp
-    app/task_controller/rnn_onnx_runner.cpp
-)
-target_include_directories(task_controller PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${ONNX_DIR}/include
-)
-target_link_directories(task_controller PRIVATE
-    ${ONNX_DIR}/lib
-)
-target_link_libraries(task_controller PRIVATE
-    yaml-cpp
-    Eigen3::Eigen
-    onnxruntime
-    pthread
-    dl
-    m
-)
-set_target_properties(task_controller PROPERTIES
-    BUILD_RPATH "${ONNX_DIR}/lib"
-)
+# add_executable(task_controller
+#     app/task_controller/main.cpp
+#     app/task_controller/task_controller.cpp
+#     app/task_controller/onnx_runner.cpp
+#     app/task_controller/rnn_onnx_runner.cpp
+# )
+# target_include_directories(task_controller PRIVATE
+#     ${CMAKE_CURRENT_SOURCE_DIR}/include
+#     ${ONNX_DIR}/include
+# )
+# target_link_directories(task_controller PRIVATE
+#     ${ONNX_DIR}/lib
+# )
+# target_link_libraries(task_controller PRIVATE
+#     yaml-cpp
+#     Eigen3::Eigen
+#     onnxruntime
+#     pthread
+#     dl
+#     m
+# )
+# set_target_properties(task_controller PROPERTIES
+#     BUILD_RPATH "${ONNX_DIR}/lib"
+# )
 
 add_executable(aux_reader
     app/aux_reader/main.cpp

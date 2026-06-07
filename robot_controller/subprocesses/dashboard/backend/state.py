@@ -142,7 +142,6 @@ class MonitorState:
     imu_request_id: int
     imu_quat_id: int
     imu_gyro_id: int
-    imu_cmd_get_all: int
     imu_quat_scale: float
     imu_gyro_scale: float
     imu_normalize_quat: bool
@@ -151,8 +150,6 @@ class MonitorState:
     allow_actuator_commands: bool = False
     socket_status: str = "disconnected"
     socket_error: str | None = None
-    imu_polling: bool = False
-    imu_poll_hz: float = 0.0
     mit_poll_can_ids: set[int] = field(default_factory=set)
     mit_poll_hz: float = 50.0
     start_t: float = field(default_factory=monotonic)
@@ -179,7 +176,7 @@ class MonitorState:
         self.actuator_configs = tuple(sorted(normalized, key=lambda item: item["can_id"]))
 
     def ensure_known_nodes(self) -> None:
-        self._ensure_node("imu_req", "E2Box request", self.imu_request_id, "IMU TX/RX")
+        self._ensure_node("imu_req", "E2Box command", self.imu_request_id, "IMU")
         self._ensure_node("imu_quat", "E2Box quaternion", self.imu_quat_id, "IMU")
         self._ensure_node("imu_gyro", "E2Box gyro", self.imu_gyro_id, "IMU")
 
@@ -403,8 +400,6 @@ class MonitorState:
                 "allow_actuator_commands": self.allow_actuator_commands,
             },
             "controls": {
-                "imu_polling": self.imu_polling,
-                "imu_poll_hz": self.imu_poll_hz,
                 "mit_polling": bool(self.mit_poll_can_ids),
                 "mit_poll_can_ids": [hex_id(can_id) for can_id in sorted(self.mit_poll_can_ids)],
                 "mit_poll_hz": self.mit_poll_hz,

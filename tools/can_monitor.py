@@ -683,7 +683,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--iface",
-        default="vcan0",
+        default="can0",
         help="SocketCAN interface name. Default: vcan0",
     )
 

@@ -6,9 +6,6 @@ dashboard:
   port: 8000
   state_hz: 24
   transmit_ids:
-    - label: E2Box request
-      platform_ref: imu_request
-      payload: "03"
     - label: RL hip roll
       actuator: RL_hip_roll
       payload: "C100000000000000"
@@ -18,6 +15,16 @@ dashboard:
     - label: RL knee pitch
       actuator: RL_knee_pitch
       payload: "C100000000000000"
+  zero_set_presets:
+    - id: qhrr
+      label: Hip Roll 82.5 / Hip Pitch -100 / Knee Pitch 20
+      targets:
+        - actuator: RL_hip_roll
+          offset_deg: 82.5
+        - actuator: RL_hip_pitch
+          offset_deg: -100.0
+        - actuator: RL_knee_pitch
+          offset_deg: 20.0
 
 robot_controller_state:
   enabled: true
@@ -31,9 +38,6 @@ can:
 
 can_daemon:
   connect_timeout_s: 1.0
-
-imu:
-  default_poll_hz: 400
 
 spg:
   default_mit_poll_hz: 500

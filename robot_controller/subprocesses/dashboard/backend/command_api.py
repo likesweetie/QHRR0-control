@@ -191,9 +191,6 @@ class CommandService:
             return None
         return self.controller_safety_reason_provider()
 
-    def request_imu_all(self) -> dict:
-        return self.send_raw(self.state.imu_request_id, bytes([self.state.imu_cmd_get_all]))
-
     def send_motor_command(self, can_id: int, opcode: int, suffix: bytes = b"") -> dict:
         if not self.state.allow_actuator_commands:
             raise CommandError("Actuator commands are disabled by config")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import time
+from collections.abc import Iterable
 from enum import IntEnum
 from multiprocessing import shared_memory
 
@@ -17,12 +18,28 @@ class OperatorCommandCode(IntEnum):
     RUN = 7
 
 
+OPERATOR_ZERO_TARGET_CAPACITY = 12
+OPERATOR_ZERO_TARGET_MAGIC = 0x5A45524F
+
+
+class OperatorZeroTargetC(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("can_id", ctypes.c_uint32),
+        ("offset_count", ctypes.c_int16),
+        ("reserved", ctypes.c_uint16),
+    ]
+
+
 class OperatorCommandC(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("timestamp_ns", ctypes.c_uint64),
         ("command", ctypes.c_uint32),
         ("target_mask", ctypes.c_uint32),
+        ("zero_target_count", ctypes.c_uint32),
+        ("zero_target_magic", ctypes.c_uint32),
+        ("zero_targets", OperatorZeroTargetC * OPERATOR_ZERO_TARGET_CAPACITY),
     ]
 
 
@@ -81,12 +98,47 @@ class OperatorCommandShm:
         self.shm.buf[: len(data)] = data
 
     def publish(self, code: OperatorCommandCode | int, target_mask: int = 0) -> int:
+        command = self._build_command(code, target_mask=target_mask)
+        self.write(command)
+        return int(command.timestamp_ns)
+
+    def publish_zero_set(self, targets: Iterable[tuple[int, int]] = ()) -> int:
+        command = self._build_command(
+            OperatorCommandCode.ZERO_SET,
+            zero_targets=targets,
+        )
+        self.write(command)
+        return int(command.timestamp_ns)
+
+    def _build_command(
+        self,
+        code: OperatorCommandCode | int,
+        *,
+        target_mask: int = 0,
+        zero_targets: Iterable[tuple[int, int]] = (),
+    ) -> OperatorCommandC:
         command = OperatorCommandC()
         command.timestamp_ns = time.time_ns()
         command.command = int(code)
         command.target_mask = int(target_mask)
-        self.write(command)
-        return int(command.timestamp_ns)
+        targets = tuple(zero_targets)
+        if len(targets) > OPERATOR_ZERO_TARGET_CAPACITY:
+            raise ValueError(
+                f"zero_set target count exceeds capacity: "
+                f"{len(targets)}/{OPERATOR_ZERO_TARGET_CAPACITY}"
+            )
+        command.zero_target_count = len(targets)
+        command.zero_target_magic = OPERATOR_ZERO_TARGET_MAGIC if targets else 0
+        for index, (can_id, offset_count) in enumerate(targets):
+            can_id_int = int(can_id)
+            offset_count_int = int(offset_count)
+            if not (0 <= can_id_int <= 0x1FFFFFFF):
+                raise ValueError(f"CAN ID out of range: {can_id_int}")
+            if not (-32768 <= offset_count_int <= 32767):
+                raise ValueError(f"MIT zero offset_count out of int16 range: {offset_count_int}")
+            command.zero_targets[index].can_id = can_id_int
+            command.zero_targets[index].offset_count = offset_count_int
+        return command
 
 
 class OperatorCommandShmWriter:
@@ -119,7 +171,10 @@ class OperatorCommandShmWriter:
         if damping:
             return self.writer.publish(OperatorCommandCode.DAMPING)
         if zero_set:
-            return self.writer.publish(OperatorCommandCode.ZERO_SET)
+            return self.publish_zero_set()
         if disable:
             return self.writer.publish(OperatorCommandCode.DISABLE)
         return self.writer.publish(OperatorCommandCode.NONE)
+
+    def publish_zero_set(self, targets: Iterable[tuple[int, int]] = ()) -> int:
+        return self.writer.publish_zero_set(targets)

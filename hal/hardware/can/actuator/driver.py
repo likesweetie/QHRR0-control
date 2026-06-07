@@ -151,8 +151,8 @@ class ActuatorDriver(CANDeviceDriverBase):
     def make_clear_fault_frame(self) -> CANFrame:
         return self.protocol.encode_clear_fault_frame()
 
-    def make_zero_position_frame(self) -> CANFrame:
-        return self.protocol.encode_zero_position_frame()
+    def make_zero_position_frame(self, offset_deg: float = 0.0) -> CANFrame:
+        return self.protocol.encode_zero_position_frame(offset_deg=offset_deg)
 
     def make_torque_command_frame(self, torque_nm: float) -> CANFrame:
         return self.protocol.encode_torque_command_frame(torque_nm)

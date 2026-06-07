@@ -134,6 +134,17 @@ class SPGActuatorProtocolTest(unittest.TestCase):
 
         self.assertEqual(frame.data, bytes([0xC3, 0, 0, 0, 0, 0, 0xB8, 0x0B]))
 
+    def test_zero_position_command_accepts_offset_degrees(self) -> None:
+        protocol = SPGActuatorProtocol(
+            command_id=0x141,
+            feedback_id=0x141,
+            mit_config=SPGMITConfig(),
+        )
+
+        frame = protocol.encode_zero_position_frame(offset_deg=82.5)
+
+        self.assertEqual(frame.data, bytes([0xC3, 0, 0, 0, 0, 0, 0x3A, 0x20]))
+
     def test_clear_error_flag_ack_decodes_remaining_fault(self) -> None:
         protocol = SPGActuatorProtocol(
             command_id=0x141,

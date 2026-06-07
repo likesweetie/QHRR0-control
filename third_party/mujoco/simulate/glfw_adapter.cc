@@ -107,6 +107,23 @@ GlfwAdapter::GlfwAdapter() {
 
   // make context current
   Glfw().glfwMakeContextCurrent(window_);
+  Glfw().glfwSwapInterval(0);
+
+  const char* vendor =
+      reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+  const char* renderer =
+      reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+  const char* version =
+      reinterpret_cast<const char*>(glGetString(GL_VERSION));
+
+  std::printf("[OpenGL] Vendor: %s\n", vendor ? vendor : "(null)");
+  std::printf("[OpenGL] Renderer: %s\n", renderer ? renderer : "(null)");
+  std::printf("[OpenGL] Version: %s\n", version ? version : "(null)");
+
+  int fb_w = 0;
+  int fb_h = 0;
+  Glfw().glfwGetFramebufferSize(window_, &fb_w, &fb_h);
+  std::printf("[OpenGL] framebuffer=%dx%d\n", fb_w, fb_h);
 }
 
 GlfwAdapter::~GlfwAdapter() {

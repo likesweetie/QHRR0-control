@@ -48,12 +48,13 @@ sequenceDiagram
 | `ESTOP` | disable all only |
 | `DISABLED` | disable all only |
 | `ENABLING` | enable all only |
-| `ZERO_SETTING` | zero set all only |
+| `ZERO_SETTING` | zero set only; if operator SHM carries zero targets, their per-actuator offsets are used |
 | `DAMPING` | MIT velocity damping-like command all only |
 | `NORMAL` | policy command from `ControlCommandShm` only |
 
 `NORMAL` is the only mode that calls `ControlCommandShm.read_relaxed()`.
 Arm does not enter `NORMAL` directly. After `enable_duration_s`, `ENABLING` transitions to `DAMPING`; a separate `RUN` operator command transitions `DAMPING` to `NORMAL`.
+Non-`NONE` operator commands are consumed once per `timestamp_ns`; repeated SHM values are treated as `NONE` and logged so stale commands are not held indefinitely.
 
 ## MIT Damping-Like Command
 

@@ -6,17 +6,9 @@ robots:
     model_path: third_party/mujoco/model/one_leg_v2/qhrr0_environment.xml
     policy_config_dir: config/policy_config/qhrr
     pd_config_path: config/policy_config/qhrr/qhrr/pd_config.yaml
-  rbq:
-    model_path: third_party/mujoco/model/rbq10/rbq_environment.xml
-    policy_config_dir: config/policy_config/rbq
-    pd_config_path: config/policy_config/rbq/rbq/pd_config.yaml
-  qhrr1:
-    model_path: third_party/mujoco/model/qhrr1/qhrr1_environment.xml
-    policy_config_dir: config/policy_config/qhrr1
-    pd_config_path: config/policy_config/qhrr1/qhrr1/pd_config.yaml
-
+    
 can:
-  interface: vcan0
+  interface: can0
   bitrate: 1000000
   daemon_socket: /tmp/qhrr_can_daemon.sock
 

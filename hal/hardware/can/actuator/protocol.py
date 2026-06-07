@@ -72,7 +72,7 @@ class ActuatorProtocolBase(CANDeviceProtocolBase):
     def encode_clear_fault_frame(self) -> CANFrame:
         raise NotImplementedError(f"{self.__class__.__name__} does not support clear-fault command")
 
-    def encode_zero_position_frame(self) -> CANFrame:
+    def encode_zero_position_frame(self, offset_deg: float = 0.0) -> CANFrame:
         raise NotImplementedError(f"{self.__class__.__name__} does not support zero-position command")
 
     def encode_torque_command_frame(self, torque_nm: float) -> CANFrame:

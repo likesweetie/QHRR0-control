@@ -133,11 +133,11 @@ def main() -> int:
             }
             dof_pos = np.asarray(
                 [float(actuators[can_id].position_rad) for can_id in can_ids],
-                dtype=np.float64,
+                dtype=np.float32,
             )
             dof_vel = np.asarray(
                 [float(actuators[can_id].velocity_rad_s) for can_id in can_ids],
-                dtype=np.float64,
+                dtype=np.float32,
             )
             imu = control_state.imu
             quat_xyzw = imu.quat_xyzw
@@ -149,13 +149,13 @@ def main() -> int:
             ]
             gyro = np.asarray(
                 [float(value) for value in imu.angular_velocity_rad_s],
-                dtype=np.float64,
+                dtype=np.float32,
             )
 
             mode = bool(buttons.get("a_button", False))
             active_policy.set_state(dof_pos, dof_vel, quat, gyro)
             active_policy.set_commands(float(lin_vel[0]), float(lin_vel[1]), float(ang_vel_cmd[2]), mode)
-            q_target = active_policy.compute_action() + action_offset(active_policy, robot_name, dof_pos, mode)
+            q_target = (active_policy.compute_action()*mode) + action_offset(active_policy, robot_name, dof_pos, mode)
 
             control_command_writer.write_targets(
                 [
