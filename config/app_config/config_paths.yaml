@@ -1,0 +1,17 @@
+# config/app_config/config_paths.yaml
+#
+# Fixed project-wide config path registry.
+# Other YAML files should not contain paths to sibling config files.
+
+configs:
+  robot_controller: "config/app_config/robot_controller.yaml"
+  robot_platform: "config/app_config/robot_platform.yaml"
+  can_device: "config/app_config/can_device_config.yaml"
+  processes: "config/app_config/processes.yaml"
+  dashboard: "config/app_config/dashboard.yaml"
+  mujoco: "config/app_config/mujoco.yaml"
+  policy_runner: "config/app_config/policy_runner.yaml"
+
+policy:
+  policy_list: "config/policy_config/qhrr/policy_list.yaml"
+  pd_config: "config/policy_config/qhrr/qhrr/pd_config.yaml"

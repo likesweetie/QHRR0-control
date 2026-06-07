@@ -1,13 +1,5 @@
-platform_config: platform.yaml
+# config/app_config/mujoco.yaml
 
-mujoco_can:
-  enabled: true
-
-  imu_sensors:
-    quat_sensor_name: imu_quat
-    gyro_sensor_name: imu_gyro
-
-  socketcan:
-    enabled: true
-  spg_mit:
-    set_zero_hold_s: 0.020
+imu_sensors:
+  quat_sensor_name: "imu_quat"
+  gyro_sensor_name: "imu_gyro"

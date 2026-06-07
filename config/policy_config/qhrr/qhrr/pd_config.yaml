@@ -1,6 +1,10 @@
-robot: "qhhr" 
+# config/policy_config/qhrr/qhrr/pd_config.yaml
+
+robot: "qhrr"
 
 decimation: 1
+
+num_joint: 3
+
 kp: 15.0
 kd: 0.5
-num_joint: 3

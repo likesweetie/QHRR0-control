@@ -141,7 +141,7 @@ class RobotController:
 
     def start(self) -> None:
         try:
-            self.controller_state = RuntimePhase.INIT_SHM
+            self.runtime_phase = RuntimePhase.INIT_SHM
             if self.config.shm.cleanup_stale_on_start:
                 self.shm_manager.cleanup_stale()
             self.shm_manager.create_all()
@@ -150,27 +150,27 @@ class RobotController:
             self.control_state_shm = RobotStateShm.open(self.config.shm.control_state.name)
             self.dashboard_state_shm = RobotStateShm.open(self.config.shm.dashboard_state.name)
 
-            self.controller_state = RuntimePhase.START_CAN_DAEMON
+            self.runtime_phase = RuntimePhase.START_CAN_DAEMON
             self.processes_supervisor.start_by_name("can_daemon")
             self.can.connect()
             self._register_callbacks()
 
             #bringup_imu()
-            self.controller_state = RuntimePhase.BRINGUP_IMU
+            self.runtime_phase = RuntimePhase.BRINGUP_IMU
             if (self.config.can.imu.enabled) and (self.config.can.imu.request_all_on_start):
                 for _ in range(int(self.config.can.imu.startup_request_count)):
                     self.can.send_frame(self.imu.make_request_all_frame())
                     time.sleep(self.config.can.imu.startup_request_delay_s)
 
-            self.controller_state = RuntimePhase.START_CHILD_PROCESSES
+            self.runtime_phase = RuntimePhase.START_CHILD_PROCESSES
             self.processes_supervisor.start_all()
 
-            self.controller_state = RuntimePhase.RUNNING
+            self.runtime_phase = RuntimePhase.RUNNING
             self._running = True
 
             self._publish_state(force=True)
         except Exception:
-            self.controller_state = RuntimePhase.ERROR
+            self.runtime_phase = RuntimePhase.ERROR
             self.shutdown()
             raise
 
@@ -242,10 +242,10 @@ class RobotController:
         self._running = False
 
     def shutdown(self) -> None:
-        if self.controller_state == RuntimePhase.STOPPED:
+        if self.runtime_phase == RuntimePhase.STOPPED:
             return
         self._running = False
-        self.controller_state = RuntimePhase.SHUTTING_DOWN
+        self.runtime_phase = RuntimePhase.SHUTTING_DOWN
         try:
             if self.can.is_connected():
                 self._record_output_command("DISABLE", ())
@@ -270,7 +270,7 @@ class RobotController:
 
         if self.config.shm.unlink_on_shutdown:
             self.shm_manager.unlink_all()
-        self.controller_state = RuntimePhase.STOPPED
+        self.runtime_phase = RuntimePhase.STOPPED
 
 
     def _register_callbacks(self) -> None:
@@ -317,10 +317,10 @@ class RobotController:
 
     def _send_zero_set_all(self, command: OperatorCommandC | None = None) -> None:
         if command is None:
-            return {}
+            return
         count = int(command.zero_target_count)
         if count == 0:
-            return {}
+            return
         if int(command.zero_target_magic) != OPERATOR_ZERO_TARGET_MAGIC:
             raise RuntimeError("Malformed ZERO_SET operator command: invalid zero target magic")
         if count > len(command.zero_targets):
