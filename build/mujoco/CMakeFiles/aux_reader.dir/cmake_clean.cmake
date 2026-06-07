@@ -1,4 +1,5 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/aux_reader.dir/link.d"
   "CMakeFiles/aux_reader.dir/app/aux_reader/joystick.cpp.o"
   "CMakeFiles/aux_reader.dir/app/aux_reader/joystick.cpp.o.d"
   "CMakeFiles/aux_reader.dir/app/aux_reader/main.cpp.o"

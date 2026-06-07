@@ -40,20 +40,43 @@ def build_env(
     env["POLICY_CONFIG_DIR"] = str(require_path(policy_config_dir, "policy config directory"))
     env["PD_CONFIG_PATH"] = str(require_path(pd_config_path, "PD config"))
     env["MUJOCO_CAN_CONFIG"] = str(model_config_path)
+    env["GLFW_PLATFORM"] = "wayland"
 
-    library_paths = [
-        str(require_path(Path("third_party/mujoco/lib"), "MuJoCo library directory")),
-        str(require_path(Path("third_party/onnxruntime/lib"), "ONNX Runtime library directory")),
-    ]
+    library_paths: list[str] = []
+
+    wsl_lib_dir = Path("/usr/lib/wsl/lib")
+    if wsl_lib_dir.exists():
+        library_paths.append(str(wsl_lib_dir))
+
+        env["GALLIUM_DRIVER"] = "d3d12"
+        env["MESA_LOADER_DRIVER_OVERRIDE"] = "d3d12"
+        env["LIBGL_ALWAYS_SOFTWARE"] = "0"
+        env["MUJOCO_GL"] = "glfw"
+
+        # 혹시 기존 환경에서 간섭할 수 있는 값 제거
+        env.pop("LIBGL_ALWAYS_INDIRECT", None)
+
+    library_paths.extend(
+        [
+            str(require_path(Path("third_party/mujoco/lib"), "MuJoCo library directory")),
+            str(require_path(Path("third_party/onnxruntime/lib"), "ONNX Runtime library directory")),
+        ]
+    )
+
     existing_ld_path = env.get("LD_LIBRARY_PATH")
     if existing_ld_path:
         library_paths.append(existing_ld_path)
+
     env["LD_LIBRARY_PATH"] = ":".join(library_paths)
     return env
 
 
 def spawn(name: str, command: list[str], env: dict[str, str]) -> subprocess.Popen:
     print(f"[mujoco-launch] starting {name}: {' '.join(command)}", flush=True)
+    print(f"[mujoco-launch] LD_LIBRARY_PATH={env.get('LD_LIBRARY_PATH', '')}", flush=True)
+    print(f"[mujoco-launch] GALLIUM_DRIVER={env.get('GALLIUM_DRIVER', '')}", flush=True)
+    print(f"[mujoco-launch] MESA_LOADER_DRIVER_OVERRIDE={env.get('MESA_LOADER_DRIVER_OVERRIDE', '')}", flush=True)
+    print(f"[mujoco-launch] MUJOCO_GL={env.get('MUJOCO_GL', '')}", flush=True)
     return subprocess.Popen(command, cwd=PROJECT_ROOT, env=env, start_new_session=True)
 
 

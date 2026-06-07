@@ -1,1 +1,1 @@
-/usr/bin/c++ CMakeFiles/daemon.dir/app/daemon/main.cpp.o CMakeFiles/daemon.dir/app/daemon/daemon.cpp.o -o daemon  -lyaml-cpp -lpthread 
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/daemon.dir/link.d CMakeFiles/daemon.dir/app/daemon/main.cpp.o CMakeFiles/daemon.dir/app/daemon/daemon.cpp.o -o daemon  -lyaml-cpp -lpthread
