@@ -10,8 +10,8 @@ from .can_decode import (
 )
 from .socketcan_io import CAN_FRAME_SIZE
 from .state import MonitorState
-from hal.can_bus import CANFrame
-from hal.can_bus.process_client import CANProcessClient
+from qhrr0.app.hal.can_bus import CANFrame
+from qhrr0.app.hal.can_bus.process_client import CANProcessClient
 
 
 class CommandError(RuntimeError):

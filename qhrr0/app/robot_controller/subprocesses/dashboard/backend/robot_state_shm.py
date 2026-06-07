@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from robot_controller.shm.types.robot_state import (
+from qhrr0.app.robot_controller.shm.types.robot_state import (
     COMMAND_OUTPUT_SOURCE_NAMES,
     ActuatorStateC,
     CommandOutputStateC,

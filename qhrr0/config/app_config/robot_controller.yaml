@@ -6,7 +6,7 @@ runtime:
 hardware:
   allow_real_can: false
 
-  can:
+can:
   interface: "vcan0"
   bitrate: 1000000
   daemon_socket: "/tmp/qhrr_can_daemon.sock"
@@ -66,5 +66,4 @@ shm:
     name: "qhrr_dashboard_state"
     size_bytes: 65536
     publish_hz: 10.0
-
 

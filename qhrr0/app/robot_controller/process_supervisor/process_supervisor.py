@@ -6,12 +6,9 @@ import signal
 import shlex
 import subprocess
 import time
-from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
-
-from .config import ProcessConfig
 
 
 logger = logging.getLogger(__name__)
@@ -43,21 +40,60 @@ SHELL_EXEC_FLAG = "-lc"
 PROCESS_LOG_MESSAGE = "[process_supervisor] log file: %s\\n"
 
 
-@dataclass(frozen=True)
 class ProcessStatus:
-    name: str
-    alive: bool
-    pid: int | None
-    managed_pid: int | None
-    returncode: int | None
-    log_file: str
+    def __init__(
+        self,
+        *,
+        name: str,
+        alive: bool,
+        pid: int | None,
+        managed_pid: int | None,
+        returncode: int | None,
+        log_file: str,
+    ):
+        self.name = str(name)
+        self.alive = bool(alive)
+        self.pid = pid
+        self.managed_pid = managed_pid
+        self.returncode = returncode
+        self.log_file = str(log_file)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "alive": self.alive,
+            "pid": self.pid,
+            "managed_pid": self.managed_pid,
+            "returncode": self.returncode,
+            "log_file": self.log_file,
+        }
 
 
 class ManagedProcess:
-    def __init__(self, config: ProcessConfig, pid_dir: Path, log_dir: Path):
-        self.config = config
-        self.pidfile = pid_dir / f"{config.name}{PID_FILE_SUFFIX}"
-        self.log_file = log_dir / f"{config.name}{LOG_FILE_SUFFIX}"
+    def __init__(
+        self,
+        *,
+        name: str,
+        command: tuple[str, ...],
+        start_order: int,
+        stop_order: int,
+        new_terminal: bool,
+        terminal_command: tuple[str, ...],
+        working_dir: str,
+        env_vars: dict[str, str],
+        pid_dir: Path,
+        log_dir: Path,
+    ):
+        self.name = str(name)
+        self.command = tuple(str(part) for part in command)
+        self.start_order = int(start_order)
+        self.stop_order = int(stop_order)
+        self.new_terminal = bool(new_terminal)
+        self.terminal_command = tuple(str(part) for part in terminal_command)
+        self.working_dir = str(working_dir)
+        self.env_vars = {str(key): str(value) for key, value in env_vars.items()}
+        self.pidfile = pid_dir / f"{self.name}{PID_FILE_SUFFIX}"
+        self.log_file = log_dir / f"{self.name}{LOG_FILE_SUFFIX}"
         self.process: subprocess.Popen | None = None
         self._log_handle: BinaryIO | None = None
 
@@ -67,8 +103,8 @@ class ManagedProcess:
 
         self._close_log_handle()
 
-        if not self.config.command:
-            raise ValueError(f"Process {self.config.name} has empty command")
+        if not self.command:
+            raise ValueError(f"Process {self.name} has empty command")
 
         self.pidfile.parent.mkdir(parents=True, exist_ok=True)
 
@@ -78,7 +114,7 @@ class ManagedProcess:
         stdout = None
         stderr = None
 
-        if not self.config.new_terminal:
+        if not self.new_terminal:
             self._log_handle = self.log_file.open(
                 LOG_OPEN_MODE,
                 buffering=LOG_BUFFERING,
@@ -89,7 +125,7 @@ class ManagedProcess:
         try:
             self.process = subprocess.Popen(
                 self._launch_command(),
-                cwd=self.config.working_dir,
+                cwd=self.working_dir,
                 env=self._process_env(),
                 stdout=stdout,
                 stderr=stderr,
@@ -125,7 +161,7 @@ class ManagedProcess:
                 except subprocess.TimeoutExpired:
                     logger.warning(
                         "Killing process %s after stop timeout %.3fs",
-                        self.config.name,
+                        self.name,
                         timeout_s,
                     )
 
@@ -138,7 +174,7 @@ class ManagedProcess:
             elif managed_pid is not None and self._pid_is_running(managed_pid):
                 logger.warning(
                     "Killing managed process %s after stop timeout %.3fs",
-                    self.config.name,
+                    self.name,
                     timeout_s,
                 )
                 self._terminate_pid(managed_pid, signal.SIGKILL)
@@ -161,7 +197,7 @@ class ManagedProcess:
         managed_pid = self._read_pidfile()
 
         return ProcessStatus(
-            name=self.config.name,
+            name=self.name,
             alive=process_alive or (
                 managed_pid is not None and self._pid_is_running(managed_pid)
             ),
@@ -172,13 +208,13 @@ class ManagedProcess:
         )
 
     def _launch_command(self) -> list[str]:
-        if not self.config.new_terminal:
-            return list(self.config.command)
+        if not self.new_terminal:
+            return list(self.command)
 
-        if not self.config.terminal_command:
-            raise ValueError(f"Process {self.config.name} requires terminal_command")
+        if not self.terminal_command:
+            raise ValueError(f"Process {self.name} requires terminal_command")
 
-        workdir = Path(self.config.working_dir).resolve()
+        workdir = Path(self.working_dir).resolve()
 
         pidfile_part = (
             f"printf '%s\\n' \"$$\" > {shlex.quote(str(self.pidfile))} && "
@@ -194,10 +230,10 @@ class ManagedProcess:
             f"cd {shlex.quote(str(workdir))} && "
             f"{pidfile_part}"
             f"{log_part}"
-            f"exec {shlex.join(self.config.command)}"
+            f"exec {shlex.join(self.command)}"
         )
 
-        return list(self.config.terminal_command) + [
+        return list(self.terminal_command) + [
             SHELL_EXECUTABLE,
             SHELL_EXEC_FLAG,
             shell_command,
@@ -205,8 +241,20 @@ class ManagedProcess:
 
     def _process_env(self) -> dict[str, str]:
         env = dict(os.environ)
-        env.update(self.config.env_vars)
+        env.update(self.env_vars)
         return env
+
+    def config_snapshot(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "command": list(self.command),
+            "start_order": self.start_order,
+            "stop_order": self.stop_order,
+            "new_terminal": self.new_terminal,
+            "terminal_command": list(self.terminal_command),
+            "working_dir": self.working_dir,
+            "env_vars": dict(self.env_vars),
+        }
 
     def _read_pidfile(self) -> int | None:
         if not self.pidfile.exists():
@@ -291,7 +339,7 @@ class ManagedProcess:
 
 
 class ProcessSupervisor:
-    def __init__(self, process_configs: list[ProcessConfig]):
+    def __init__(self):
         self.pid_dir = PID_DIR
         self.log_dir = (
             Path.cwd()
@@ -300,19 +348,43 @@ class ProcessSupervisor:
         )
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        self._processes: dict[str, ManagedProcess] = {
-            config.name: ManagedProcess(
-                config=config,
-                pid_dir=self.pid_dir,
-                log_dir=self.log_dir,
-            )
-            for config in process_configs
-        }
+        self._processes: dict[str, ManagedProcess] = {}
+
+    def add_process(
+        self,
+        *,
+        name: str,
+        command: tuple[str, ...],
+        start_order: int,
+        stop_order: int,
+        new_terminal: bool,
+        terminal_command: tuple[str, ...],
+        working_dir: str,
+        env_vars: dict[str, str],
+    ) -> None:
+        process_name = str(name)
+        if not process_name:
+            raise ValueError("Process name must not be empty")
+        if process_name in self._processes:
+            raise ValueError(f"Duplicate process name: {process_name}")
+
+        self._processes[process_name] = ManagedProcess(
+            name=process_name,
+            command=tuple(str(part) for part in command),
+            start_order=int(start_order),
+            stop_order=int(stop_order),
+            new_terminal=bool(new_terminal),
+            terminal_command=tuple(str(part) for part in terminal_command),
+            working_dir=str(working_dir),
+            env_vars={str(key): str(value) for key, value in env_vars.items()},
+            pid_dir=self.pid_dir,
+            log_dir=self.log_dir,
+        )
 
     @property
-    def process_configs(self) -> dict[str, ProcessConfig]:
+    def process_configs(self) -> dict[str, dict[str, object]]:
         return {
-            name: process.config
+            name: process.config_snapshot()
             for name, process in self._processes.items()
         }
 
@@ -337,14 +409,14 @@ class ProcessSupervisor:
     def start_all(self) -> None:
         for process in sorted(
             self._processes.values(),
-            key=lambda item: item.config.start_order,
+            key=lambda item: item.start_order,
         ):
             process.start()
 
     def stop_all(self, timeout_s: float = DEFAULT_STOP_TIMEOUT_S) -> None:
         for process in sorted(
             self._processes.values(),
-            key=lambda item: item.config.stop_order,
+            key=lambda item: item.stop_order,
         ):
             process.stop(timeout_s=timeout_s)
 
@@ -357,8 +429,8 @@ class ProcessSupervisor:
     def status(self) -> dict[str, dict[str, object]]:
         return {
             name: {
-                "config": asdict(process.config),
-                **asdict(process.health),
+                "config": process.config_snapshot(),
+                **process.health.as_dict(),
             }
             for name, process in self._processes.items()
         }

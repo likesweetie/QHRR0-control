@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from hal.can_bus import CANFrame
+from qhrr0.app.hal.can_bus import CANFrame
 
 from .state import RobotPoseState
 

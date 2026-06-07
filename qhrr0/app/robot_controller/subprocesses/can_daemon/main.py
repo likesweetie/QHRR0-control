@@ -8,8 +8,7 @@ import socket
 import threading
 from pathlib import Path
 
-from robot_controller.config import load_robot_controller_config, resolve_config_arg
-from hal.can_bus import CANFrame, CANDaemon, SocketCANBus
+from qhrr0.app.hal.can_bus import CANFrame, CANDaemon, SocketCANBus
 
 
 logger = logging.getLogger(__name__)
@@ -50,9 +49,27 @@ class RxSubscribers:
 
 
 class CANSubprocessDaemon:
-    def __init__(self, config_path: Path, replace_existing_socket: bool) -> None:
-        self.config = load_robot_controller_config(config_path)
-        self.socket_path = Path(self.config.can.daemon.ipc_socket_path)
+    def __init__(
+        self,
+        *,
+        can_interface: str,
+        ipc_socket_path: str,
+        rx_timeout_s: float,
+        tx_timeout_s: float,
+        join_timeout_s: float,
+        max_tx_queue_size: int,
+        send_block: bool,
+        send_timeout_s: float | None,
+        replace_existing_socket: bool,
+    ) -> None:
+        self.can_interface = str(can_interface)
+        self.rx_timeout_s = float(rx_timeout_s)
+        self.tx_timeout_s = float(tx_timeout_s)
+        self.join_timeout_s = float(join_timeout_s)
+        self.max_tx_queue_size = int(max_tx_queue_size)
+        self.send_block = bool(send_block)
+        self.send_timeout_s = None if send_timeout_s is None else float(send_timeout_s)
+        self.socket_path = Path(ipc_socket_path)
         self.replace_existing_socket = replace_existing_socket
         self.subscribers = RxSubscribers()
         self._stop_event = threading.Event()
@@ -91,7 +108,7 @@ class CANSubprocessDaemon:
             self._server_sock.close()
             self._server_sock = None
         if self._can_daemon is not None:
-            self._can_daemon.stop(self.config.can.daemon.join_timeout_s)
+            self._can_daemon.stop(self.join_timeout_s)
             self._can_daemon = None
         if self._can_bus is not None:
             self._can_bus.close()
@@ -100,15 +117,14 @@ class CANSubprocessDaemon:
             self.socket_path.unlink()
 
     def _start_can(self) -> None:
-        self._can_bus = SocketCANBus(self.config.can.interface)
+        self._can_bus = SocketCANBus(self.can_interface)
         self._disable_recv_own_messages(self._can_bus)
-        daemon_config = self.config.can.daemon
         self._can_daemon = CANDaemon(
             can_bus=self._can_bus,
-            rx_timeout=daemon_config.rx_timeout_s,
-            tx_timeout=daemon_config.tx_timeout_s,
-            join_timeout=daemon_config.join_timeout_s,
-            max_tx_queue_size=daemon_config.max_tx_queue_size,
+            rx_timeout=self.rx_timeout_s,
+            tx_timeout=self.tx_timeout_s,
+            join_timeout=self.join_timeout_s,
+            max_tx_queue_size=self.max_tx_queue_size,
         )
         self._can_daemon.register_wildcard_callback(self.subscribers.publish)
         self._can_daemon.start()
@@ -170,8 +186,8 @@ class CANSubprocessDaemon:
                 assert self._can_daemon is not None
                 ok = self._can_daemon.send(
                     frame,
-                    block=self.config.can.daemon.send_block,
-                    timeout=self.config.can.daemon.send_timeout_s,
+                    block=self.send_block,
+                    timeout=self.send_timeout_s,
                 )
                 self._write_json_line(file_obj, {"type": "tx_result", "ok": bool(ok)})
             except Exception as exc:
@@ -211,8 +227,14 @@ class CANSubprocessDaemon:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="QHRR SocketCAN daemon subprocess")
-    parser.add_argument("--config", type=Path, default=None)
-    parser.add_argument("--config-key", default="robot_controller")
+    parser.add_argument("--can-interface", required=True)
+    parser.add_argument("--ipc-socket-path", required=True)
+    parser.add_argument("--rx-timeout-s", type=float, required=True)
+    parser.add_argument("--tx-timeout-s", type=float, required=True)
+    parser.add_argument("--join-timeout-s", type=float, required=True)
+    parser.add_argument("--max-tx-queue-size", type=int, required=True)
+    parser.add_argument("--send-block", action="store_true")
+    parser.add_argument("--send-timeout-s", type=float, default=None)
     parser.add_argument("--replace-existing-socket", action="store_true")
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
@@ -224,8 +246,17 @@ def main() -> None:
         level=getattr(logging, str(args.log_level).upper()),
         format="[%(levelname)s] %(name)s: %(message)s",
     )
-    config_path = resolve_config_arg(args.config, args.config_key, default_key="robot_controller")
-    daemon = CANSubprocessDaemon(config_path, args.replace_existing_socket)
+    daemon = CANSubprocessDaemon(
+        can_interface=args.can_interface,
+        ipc_socket_path=args.ipc_socket_path,
+        rx_timeout_s=args.rx_timeout_s,
+        tx_timeout_s=args.tx_timeout_s,
+        join_timeout_s=args.join_timeout_s,
+        max_tx_queue_size=args.max_tx_queue_size,
+        send_block=bool(args.send_block),
+        send_timeout_s=args.send_timeout_s,
+        replace_existing_socket=bool(args.replace_existing_socket),
+    )
     daemon.run()
 
 

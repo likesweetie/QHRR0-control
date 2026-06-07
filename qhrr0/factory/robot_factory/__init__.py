@@ -1,0 +1,1 @@
+"""Static robot data factory."""

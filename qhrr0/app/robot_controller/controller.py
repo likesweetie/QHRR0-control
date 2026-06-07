@@ -6,19 +6,18 @@ import time
 
 from enum import IntEnum
 
-from hal.can_bus.process_transport import CANProcessTransport
-from hal.hardware.can.actuator.driver import ActuatorDriver
-from hal.hardware.can.imu.driver import IMUDriver
+from qhrr0.app.hal.can_bus.process_transport import CANProcessTransport
+from qhrr0.app.hal.hardware.can.actuator.driver import ActuatorDriver
+from qhrr0.app.hal.hardware.can.imu.driver import IMUDriver
 
-from qhrr0_hw.actuators import SPGMITConfig, create_spg_actuator_driver
-from qhrr0_hw.imu import E2BoxIMUProtocol
-from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_config
+from qhrr0.app.hal.driver.actuators import create_spg_actuator_driver
+from qhrr0.app.hal.driver.imu import E2BoxIMUProtocol
 
-from robot_controller.config import RobotControllerConfig
-from robot_controller.state_machine import ControllerMode, ControlModeFsm
-from robot_controller.process_supervisor import ProcessSupervisor
-from robot_controller.shm.manager import ShmManager
-from robot_controller.shm import (
+from qhrr0.factory.app_factory.schema import RobotControllerActuator, RobotControllerRuntimeConfig
+from qhrr0.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
+from qhrr0.app.robot_controller.process_supervisor import ProcessSupervisor
+from qhrr0.app.robot_controller.shm.manager import ShmManager
+from qhrr0.app.robot_controller.shm import (
     COMMAND_OUTPUT_SOURCE_VALUES,
     MAX_ROBOT_STATE_ACTUATORS,
     OPERATOR_ZERO_TARGET_MAGIC,
@@ -49,83 +48,90 @@ class RuntimePhase(IntEnum):
 
 
 class RobotController:
-    def __init__(self, config: RobotControllerConfig):
+    def __init__(
+        self,
+        *,
+        runtime: RobotControllerRuntimeConfig,
+        process_supervisor: ProcessSupervisor,
+    ):
         self._runtime_phase = RuntimePhase.CREATED
 
-        self.config = config
-
-        self.robot_spec: QHRR0RobotSpec = robot_spec_from_config(
-            config.robot_platform,
-            config.can_device,
-        )
+        self.runtime = runtime
+        self.controller_actuators = tuple(runtime.actuators)
+        self.can_command_timeout_s = float(runtime.can.command_timeout_s)
+        self.imu_enabled = bool(runtime.imu.enabled)
+        self.imu_request_all_on_start = bool(runtime.imu.request_all_on_start)
+        self.imu_request_all_each_tick = bool(runtime.imu.request_all_each_tick)
+        self.imu_startup_request_count = int(runtime.imu.startup_request_count)
+        self.imu_startup_request_delay_s = float(runtime.imu.startup_request_delay_s)
+        self.control_hz = float(runtime.timing.control_hz)
+        self.shutdown_timeout_s = float(runtime.timing.shutdown_timeout_s)
+        self.velocity_damping_kd = float(runtime.safety.velocity_damping_kd)
+        self.shm_mit_command_name = str(runtime.shm.mit_command_name)
+        self.shm_operator_command_name = str(runtime.shm.operator_command_name)
+        self.shm_control_state_name = str(runtime.shm.control_state_name)
+        self.shm_dashboard_state_name = str(runtime.shm.dashboard_state_name)
 
         self.can = CANProcessTransport(
-            socket_path=config.can.daemon.ipc_socket_path,
-            connect_timeout_s=config.can.daemon.connect_timeout_s,
+            socket_path=str(runtime.can.ipc_socket_path),
+            connect_timeout_s=float(runtime.can.connect_timeout_s),
         )
 
         ################################################################
         #actuator bring up
-        protocol_range = self.config.can.mit_protocol_range
-        spg = self.config.can_device.drivers["spg_mit"]
-        iq_full_scale_count = float(spg.iq_full_scale_count)
-        if iq_full_scale_count <= 0.0:
-            raise ValueError("spg_mit.iq_full_scale_count must be positive")
-        iq_count_to_amp = (
-            float(spg.iq_full_scale_current_a)
-            / iq_full_scale_count
-        )
         unsupported_drivers = {
-            spec.driver
-            for spec in self.robot_spec.actuators
-            if spec.driver != "spg_mit"
+            actuator.driver
+            for actuator in self.controller_actuators
+            if actuator.driver != "spg_mit"
         }
         if unsupported_drivers:
             raise ValueError(f"Unsupported actuator drivers: {sorted(unsupported_drivers)}")
-        mit_config = SPGMITConfig(
-            p_max=protocol_range.position_rad,
-            v_max=protocol_range.velocity_rad_s,
-            kp_max=protocol_range.kp,
-            kd_max=protocol_range.kd,
-            tau_max=protocol_range.torque_ff_nm,
-            feedback_position_max=protocol_range.feedback_position_rad,
-        )
         self.actuators = {
-            spec.can_id: create_spg_actuator_driver(
-                spec,
-                mit_config=mit_config,
-                feedback_timeout_s=self.config.can.command_timeout_s,
+            actuator.can_id: create_spg_actuator_driver(
+                name=actuator.name,
+                can_id=actuator.can_id,
+                mit_config=runtime.mit,
+                feedback_timeout_s=self.can_command_timeout_s,
                 feedback_speed_is_motor_side=True,
-                iq_count_to_amp=iq_count_to_amp,
+                iq_count_to_amp=runtime.iq_count_to_amp,
             )
-            for spec in self.robot_spec.actuators
+            for actuator in self.controller_actuators
         }
         ################################################################
 
         ################################################################
         #IMU bring up
-        spec = self.robot_spec.imu
         self.imu = IMUDriver(
-            name=spec.name,
+            name=str(runtime.imu.name),
             protocol=E2BoxIMUProtocol(
-                request_id=spec.request_id,
-                quat_id=spec.quat_id,
-                gyro_id=spec.gyro_id,
-                cmd_get_quat=spec.cmd_get_quat,
-                cmd_get_gyro=spec.cmd_get_gyro,
-                cmd_get_all=spec.cmd_get_all,
-                quat_scale=spec.quat_scale,
-                gyro_scale=spec.gyro_scale,
-                normalize_quat=spec.normalize_quat,
+                request_id=int(runtime.imu.request_id),
+                quat_id=int(runtime.imu.quat_id),
+                gyro_id=int(runtime.imu.gyro_id),
+                cmd_get_quat=int(runtime.imu.cmd_get_quat),
+                cmd_get_gyro=int(runtime.imu.cmd_get_gyro),
+                cmd_get_all=int(runtime.imu.cmd_get_all),
+                quat_scale=float(runtime.imu.quat_scale),
+                gyro_scale=float(runtime.imu.gyro_scale),
+                normalize_quat=bool(runtime.imu.normalize_quat),
             ),
-            quat_timeout=self.config.can.command_timeout_s,
-            gyro_timeout=self.config.can.command_timeout_s,
+            quat_timeout=self.can_command_timeout_s,
+            gyro_timeout=self.can_command_timeout_s,
         )
         ################################################################
 
         ################################################################
         #shm bring up
-        self.shm_manager = ShmManager(config.shm)
+        self.shm_manager = ShmManager(
+            mit_command_name=self.shm_mit_command_name,
+            aux_command_name=runtime.shm.aux_command_name,
+            aux_command_size_bytes=runtime.shm.aux_command_size_bytes,
+            operator_command_name=self.shm_operator_command_name,
+            operator_command_size_bytes=runtime.shm.operator_command_size_bytes,
+            control_state_name=self.shm_control_state_name,
+            control_state_size_bytes=runtime.shm.control_state_size_bytes,
+            dashboard_state_name=self.shm_dashboard_state_name,
+            dashboard_state_size_bytes=runtime.shm.dashboard_state_size_bytes,
+        )
         self.control_cmd_shm: ControlCommandShm | None = None
         self.operator_cmd_shm: OperatorCommandShm | None = None
         self.control_state_shm: RobotStateShm | None = None
@@ -133,16 +139,16 @@ class RobotController:
         ################################################################
 
         self.state_machine = ControlModeFsm(
-            enable_duration_s=config.state_machine.enable_duration_s,
+            enable_duration_s=float(runtime.timing.enable_duration_s),
         )
-        self.processes_supervisor = ProcessSupervisor(config.processes)
+        self.processes_supervisor = process_supervisor
 
 
         self._last_output_source = "NONE"
         self._last_output_t = 0.0
         self._last_output_targets: tuple[CommandTargetStateC, ...] = ()
-        self._control_state_publish_period_s = 1.0 / float(config.shm.control_state.publish_hz)
-        self._dashboard_state_publish_period_s = 1.0 / float(config.shm.dashboard_state.publish_hz)
+        self._control_state_publish_period_s = 1.0 / float(runtime.shm.control_state_publish_hz)
+        self._dashboard_state_publish_period_s = 1.0 / float(runtime.shm.dashboard_state_publish_hz)
         self._last_control_state_publish_t = 0.0
         self._last_dashboard_state_publish_t = 0.0
         self._last_consumed_operator_timestamp_ns: int | None = None
@@ -155,10 +161,10 @@ class RobotController:
             self.runtime_phase = RuntimePhase.INIT_SHM
             self.shm_manager.cleanup_stale()
             self.shm_manager.create_all()
-            self.control_cmd_shm = ControlCommandShm.open(self.config.shm.mit_command.name)
-            self.operator_cmd_shm = OperatorCommandShm.open(self.config.shm.operator_command.name)
-            self.control_state_shm = RobotStateShm.open(self.config.shm.control_state.name)
-            self.dashboard_state_shm = RobotStateShm.open(self.config.shm.dashboard_state.name)
+            self.control_cmd_shm = ControlCommandShm.open(self.shm_mit_command_name)
+            self.operator_cmd_shm = OperatorCommandShm.open(self.shm_operator_command_name)
+            self.control_state_shm = RobotStateShm.open(self.shm_control_state_name)
+            self.dashboard_state_shm = RobotStateShm.open(self.shm_dashboard_state_name)
 
             self.runtime_phase = RuntimePhase.START_CAN_DAEMON
             self.processes_supervisor.start_by_name("can_daemon")
@@ -167,10 +173,10 @@ class RobotController:
 
             #bringup_imu()
             self.runtime_phase = RuntimePhase.BRINGUP_IMU
-            if (self.config.can.imu.enabled) and (self.config.can.imu.request_all_on_start):
-                for _ in range(int(self.config.can.imu.startup_request_count)):
+            if self.imu_enabled and self.imu_request_all_on_start:
+                for _ in range(self.imu_startup_request_count):
                     self.can.send_frame(self.imu.make_request_all_frame())
-                    time.sleep(self.config.can.imu.startup_request_delay_s)
+                    time.sleep(self.imu_startup_request_delay_s)
 
             self.runtime_phase = RuntimePhase.START_CHILD_PROCESSES
             self.processes_supervisor.start_all()
@@ -185,7 +191,7 @@ class RobotController:
             raise
 
     def run(self) -> None:
-        control_period_s = 1.0 / float(self.config.robot_controller.control_hz)
+        control_period_s = 1.0 / self.control_hz
         next_t = time.perf_counter()
         while self._running:
             now = time.perf_counter()
@@ -203,7 +209,7 @@ class RobotController:
         now = time.monotonic()
         
         #sending request imu data
-        if self.config.can.imu.enabled and self.config.can.imu.request_all_each_tick:
+        if self.imu_enabled and self.imu_request_all_each_tick:
             self.can.send_frame(self.imu.make_request_all_frame())
 
         assert self.operator_cmd_shm is not None
@@ -263,7 +269,7 @@ class RobotController:
                     self.can.send_frame(actuator.make_disable_frame())
         except Exception as exc:
             logger.warning("Actuator shutdown warning: %s", exc)
-        self.processes_supervisor.stop_all(self.config.robot_controller.shutdown_timeout_s)
+        self.processes_supervisor.stop_all(self.shutdown_timeout_s)
         self._publish_state(force=True)
 
         #close_runtime
@@ -363,7 +369,7 @@ class RobotController:
 
 
     def _send_damping_all(self) -> None:
-        kd = float(self.config.safety.velocity_damping_kd)
+        kd = self.velocity_damping_kd
         targets = tuple(
             _command_target_state(
                 can_id=can_id,

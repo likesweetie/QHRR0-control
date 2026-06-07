@@ -1,128 +1,92 @@
-# robot_factory/validation_policy.py
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from typing import Any
 
-from robot_factory.base.robot_base import Actuator, IMU, Robot, RobotController
+from qhrr0.factory.robot_factory.base.robot_base import (
+    Actuator,
+    IMU,
+    Robot,
+    RobotController,
+)
 
 
 class RobotValidationError(ValueError):
-    """Raised when a robot validation policy fails."""
+    """Raised when a static robot validation rule fails."""
 
 
-RobotValidator = Callable[[Robot], None]
+RobotValidationRule = Callable[[Robot], None]
 
 
-_VALIDATORS: dict[str, RobotValidator] = {}
+_ROBOT_VALIDATION_RULES: dict[str, RobotValidationRule] = {}
 
 
-def robot_validation(name: str) -> Callable[[RobotValidator], RobotValidator]:
-    """Register a robot validation policy.
-
-    Engineers can add a new validation by defining:
-
-        @robot_validation("my_validation")
-        def validate_my_rule(robot: Robot) -> None:
-            ...
-
-    Then add "my_validation" to:
-        - Robot.required_validations, or
-        - Robot.controller.required_validations
-    """
-
+def robot_validation_rule(
+    name: str,
+) -> Callable[[RobotValidationRule], RobotValidationRule]:
     if not isinstance(name, str) or not name.strip():
-        raise RobotValidationError("validation name must be a non-empty string")
+        raise RobotValidationError("robot validation rule name must be a non-empty string")
 
     key = name.strip()
 
-    def decorator(func: RobotValidator) -> RobotValidator:
-        if key in _VALIDATORS:
-            raise RobotValidationError(f"duplicate robot validation policy: {key}")
-        _VALIDATORS[key] = func
+    def decorator(func: RobotValidationRule) -> RobotValidationRule:
+        if key in _ROBOT_VALIDATION_RULES:
+            raise RobotValidationError(f"duplicate robot validation rule: {key}")
+        _ROBOT_VALIDATION_RULES[key] = func
         return func
 
     return decorator
 
 
-def validate_robot_by_policy(robot: Robot) -> None:
-    """Run all validation policies requested by the robot and its controller."""
-
+def validate_robot_by_rules(robot: Robot) -> None:
     _require_instance(robot, Robot, "robot")
 
-    validation_names = collect_required_validations(robot)
-    _validate_required_validation_names(validation_names)
+    rule_names = collect_required_validation_rules(robot)
+    _validate_required_rule_names(rule_names)
 
-    for validation_name in validation_names:
+    for rule_name in rule_names:
         try:
-            validator = _VALIDATORS[validation_name]
+            rule = _ROBOT_VALIDATION_RULES[rule_name]
         except KeyError as exc:
-            available = ", ".join(sorted(_VALIDATORS)) or "<none>"
+            available = ", ".join(sorted(_ROBOT_VALIDATION_RULES)) or "<none>"
             raise RobotValidationError(
-                f"unknown robot validation policy: {validation_name!r}. "
-                f"Available policies: {available}"
+                f"unknown robot validation rule: {rule_name!r}. "
+                f"Available rules: {available}"
             ) from exc
 
-        validator(robot)
+        rule(robot)
 
 
-def collect_required_validations(robot: Robot) -> tuple[str, ...]:
-    """Collect robot-level and controller-level validations.
-
-    Order:
-    1. robot.required_validations
-    2. robot.controller.required_validations
-
-    Duplicate names are removed while preserving order.
-    """
-
+def collect_required_validation_rules(robot: Robot) -> tuple[str, ...]:
     _require_instance(robot, Robot, "robot")
-
-    names: list[str] = []
-
-    for validation_name in robot.required_validations:
-        names.append(validation_name)
-
-    # RobotController를 쓰는 구조라면 controller validation도 자동 포함.
     _require_instance(robot.controller, RobotController, "robot.controller")
 
-    for validation_name in robot.controller.required_validations:
-        names.append(validation_name)
-
+    names: list[str] = []
+    names.extend(robot.required_validation_rules)
+    names.extend(robot.controller.required_validation_rules)
     return _deduplicate_preserving_order(names)
 
 
-def list_robot_validation_policies() -> tuple[str, ...]:
-    return tuple(sorted(_VALIDATORS))
+def list_robot_validation_rules() -> tuple[str, ...]:
+    return tuple(sorted(_ROBOT_VALIDATION_RULES))
 
 
-@robot_validation("robot_identity")
+@robot_validation_rule("robot_identity")
 def validate_robot_identity(robot: Robot) -> None:
-    """Validate robot identity fields."""
-
     _require_non_empty_string(robot.name, "robot.name")
 
     if not isinstance(robot.description, str):
         raise RobotValidationError("robot.description must be str")
 
 
-@robot_validation("can_interfaces")
+@robot_validation_rule("can_interfaces")
 def validate_can_interfaces(robot: Robot) -> None:
-    """Validate statically supported CAN interfaces.
-
-    This replaces the old robot_platform.can.allowed_interfaces checks.
-    """
-
     _require_tuple(robot.can_interfaces, "robot.can_interfaces")
 
     if not robot.can_interfaces:
         raise RobotValidationError("robot.can_interfaces must not be empty")
 
     for index, interface in enumerate(robot.can_interfaces):
-        _require_non_empty_string(
-            interface,
-            f"robot.can_interfaces[{index}]",
-        )
+        _require_non_empty_string(interface, f"robot.can_interfaces[{index}]")
 
     _require_unique(
         robot.can_interfaces,
@@ -130,13 +94,8 @@ def validate_can_interfaces(robot: Robot) -> None:
     )
 
 
-@robot_validation("controller")
+@robot_validation_rule("controller")
 def validate_controller(robot: Robot) -> None:
-    """Validate static controller description.
-
-    This validates only the controller specification, not a runtime controller instance.
-    """
-
     controller = robot.controller
 
     _require_instance(controller, RobotController, "robot.controller")
@@ -144,19 +103,19 @@ def validate_controller(robot: Robot) -> None:
     _require_non_empty_string(controller.controller_type, "robot.controller.controller_type")
 
     _require_tuple(
-        controller.required_validations,
-        "robot.controller.required_validations",
+        controller.required_validation_rules,
+        "robot.controller.required_validation_rules",
     )
 
-    for index, validation_name in enumerate(controller.required_validations):
+    for index, rule_name in enumerate(controller.required_validation_rules):
         _require_non_empty_string(
-            validation_name,
-            f"robot.controller.required_validations[{index}]",
+            rule_name,
+            f"robot.controller.required_validation_rules[{index}]",
         )
 
     _require_unique(
-        controller.required_validations,
-        "robot.controller.required_validations must not contain duplicates",
+        controller.required_validation_rules,
+        "robot.controller.required_validation_rules must not contain duplicates",
     )
 
     if controller.metadata is not None and not isinstance(controller.metadata, dict):
@@ -166,17 +125,8 @@ def validate_controller(robot: Robot) -> None:
         raise RobotValidationError("robot.controller.description must be str")
 
 
-@robot_validation("actuators")
+@robot_validation_rule("actuators")
 def validate_actuators(robot: Robot) -> None:
-    """Validate static actuator definitions.
-
-    This moves these old checks:
-    - actuators must not be empty
-    - duplicate actuator names
-    - duplicate actuator CAN IDs
-    - sign must not be zero
-    """
-
     _require_tuple(robot.actuators, "robot.actuators")
 
     if not robot.actuators:
@@ -188,7 +138,6 @@ def validate_actuators(robot: Robot) -> None:
     for index, actuator in enumerate(robot.actuators):
         path = f"robot.actuators[{index}]"
         _validate_actuator(actuator, path)
-
         actuator_names.append(actuator.name)
         actuator_can_ids.append(actuator.can_id)
 
@@ -196,107 +145,35 @@ def validate_actuators(robot: Robot) -> None:
         actuator_names,
         "robot.actuators must not contain duplicate actuator names",
     )
-
     _require_unique(
         actuator_can_ids,
         "robot.actuators must not contain duplicate actuator CAN IDs",
     )
 
 
-@robot_validation("imu")
+@robot_validation_rule("imu")
 def validate_imu(robot: Robot) -> None:
-    """Validate static IMU definition.
-
-    This only validates the simplified IMU object:
-        name, driver, can_id
-
-    Driver-specific IMU protocol fields such as request_id, quat_id, gyro_id,
-    cmd_get_quat, quat_scale, and gyro_scale should remain in CAN device config
-    validation unless those fields are moved into IMU.
-    """
-
     _validate_imu(robot.imu, "robot.imu")
 
 
-@robot_validation("can_id_conflicts")
+@robot_validation_rule("can_id_conflicts")
 def validate_can_id_conflicts(robot: Robot) -> None:
-    """Check CAN ID conflicts between actuators and IMU.
-
-    This assumes robot.imu.can_id shares the same CAN arbitration-ID namespace
-    as actuator CAN IDs.
-    """
-
-    actuator_can_ids = [actuator.can_id for actuator in robot.actuators]
-    all_can_ids = actuator_can_ids + [robot.imu.can_id]
-
+    can_ids = [actuator.can_id for actuator in robot.actuators] + [robot.imu.can_id]
     _require_unique(
-        all_can_ids,
+        can_ids,
         "robot CAN IDs must not contain duplicates between actuators and IMU",
     )
 
 
-@robot_validation("quadruped_12dof_layout")
-def validate_quadruped_12dof_layout(robot: Robot) -> None:
-    """Validate 12-DoF quadruped semantic actuator layout.
-
-    This is optional. Add this validation only for robots/controllers that assume:
-    - 4 hip actuators
-    - 4 thigh actuators
-    - 4 calf actuators
-    """
-
-    group_counts: dict[str, int] = {}
-
-    for actuator in robot.actuators:
-        group_counts[actuator.group] = group_counts.get(actuator.group, 0) + 1
-
-    expected = {
-        "hip": 4,
-        "thigh": 4,
-        "calf": 4,
-    }
-
-    for group, expected_count in expected.items():
-        actual_count = group_counts.get(group, 0)
-
-        if actual_count != expected_count:
-            raise RobotValidationError(
-                f"robot requires {expected_count} {group} actuators, "
-                f"got {actual_count}"
-            )
-
-
-@robot_validation("policy_controller_requires_12_actuators")
-def validate_policy_controller_requires_12_actuators(robot: Robot) -> None:
-    """Validate controller assumption for 12-dimensional action output."""
-
-    if len(robot.actuators) != 12:
-        raise RobotValidationError(
-            f"controller {robot.controller.name!r} requires 12 actuators, "
-            f"got {len(robot.actuators)}"
-        )
-
-
-@robot_validation("actuator_drivers_known")
+@robot_validation_rule("actuator_drivers_known")
 def validate_actuator_drivers_known(robot: Robot) -> None:
-    """Validate actuator driver names against controller metadata.
-
-    This replaces the old _validate_actuator_drivers style check if you decide
-    that allowed actuator drivers belong to the controller/robot definition layer.
-
-    Expected metadata form:
-        controller.metadata = {
-            "allowed_actuator_drivers": ("spg_mit", "some_other_driver")
-        }
-    """
-
     metadata = robot.controller.metadata or {}
     allowed = metadata.get("allowed_actuator_drivers")
 
     if allowed is None:
         raise RobotValidationError(
             "robot.controller.metadata.allowed_actuator_drivers is required "
-            "for validation 'actuator_drivers_known'"
+            "for validation rule 'actuator_drivers_known'"
         )
 
     if not isinstance(allowed, tuple):
@@ -320,13 +197,28 @@ def validate_actuator_drivers_known(robot: Robot) -> None:
             )
 
 
+@robot_validation_rule("single_leg_3dof_layout")
+def validate_single_leg_3dof_layout(robot: Robot) -> None:
+    actual = {actuator.group for actuator in robot.actuators}
+    expected = {"hip_roll", "hip_pitch", "knee_pitch"}
+
+    if actual != expected:
+        raise RobotValidationError(
+            "QHRR0 single-leg layout requires actuator groups "
+            f"{sorted(expected)}, got {sorted(actual)}"
+        )
+
+
+@robot_validation_rule("policy_controller_requires_3_actuators")
+def validate_policy_controller_requires_3_actuators(robot: Robot) -> None:
+    if len(robot.actuators) != 3:
+        raise RobotValidationError(
+            f"controller {robot.controller.name!r} requires 3 actuators, "
+            f"got {len(robot.actuators)}"
+        )
+
+
 def require_can_interface_supported(robot: Robot, interface: str) -> None:
-    """Runtime-side check for selected CAN interface.
-
-    This can be called by config validation or runtime safety validation.
-    It belongs here because the allowed interface list is now part of Robot.
-    """
-
     _require_instance(robot, Robot, "robot")
     _require_non_empty_string(interface, "can.interface")
 
@@ -338,17 +230,16 @@ def require_can_interface_supported(robot: Robot, interface: str) -> None:
         )
 
 
-def _validate_required_validation_names(validation_names: tuple[str, ...]) -> None:
-    if not validation_names:
-        raise RobotValidationError("robot validation policy list must not be empty")
+def _validate_required_rule_names(rule_names: tuple[str, ...]) -> None:
+    if not rule_names:
+        raise RobotValidationError("robot validation rule list must not be empty")
 
-    for index, validation_name in enumerate(validation_names):
-        _require_non_empty_string(validation_name, f"required_validations[{index}]")
+    for index, rule_name in enumerate(rule_names):
+        _require_non_empty_string(rule_name, f"required_validation_rules[{index}]")
 
 
 def _validate_actuator(actuator: object, path: str) -> None:
     _require_instance(actuator, Actuator, path)
-
     _require_non_empty_string(actuator.name, f"{path}.name")
     _require_non_empty_string(actuator.driver, f"{path}.driver")
 
@@ -368,7 +259,6 @@ def _validate_actuator(actuator: object, path: str) -> None:
 
 def _validate_imu(imu: object, path: str) -> None:
     _require_instance(imu, IMU, path)
-
     _require_non_empty_string(imu.name, f"{path}.name")
     _require_non_empty_string(imu.driver, f"{path}.driver")
 
@@ -400,7 +290,6 @@ def _require_non_empty_string(value: object, path: str) -> None:
 
 
 def _require_int(value: object, path: str) -> None:
-    # bool is a subclass of int, so reject it explicitly.
     if isinstance(value, bool) or not isinstance(value, int):
         raise RobotValidationError(
             f"{path} must be int, got {type(value).__name__}"

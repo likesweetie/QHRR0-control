@@ -19,10 +19,10 @@ import struct
 import time
 from dataclasses import dataclass
 
-from hal.can_bus import CANFrame
+from qhrr0.app.hal.can_bus import CANFrame
 
-from hal.hardware.can.actuator.protocol import ActuatorProtocolBase
-from hal.hardware.can.actuator.state import ActuatorState
+from qhrr0.app.hal.hardware.can.actuator.protocol import ActuatorProtocolBase
+from qhrr0.app.hal.hardware.can.actuator.state import ActuatorState
 
 
 ENC_MOD = 16384

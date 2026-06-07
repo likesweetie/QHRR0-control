@@ -1,10 +1,9 @@
-# robot_factory/robot_factory.py
 from __future__ import annotations
 
 from collections.abc import Iterable
 from typing import Any
 
-from robot_factory.base.robot_base import (
+from qhrr0.factory.robot_factory.base.robot_base import (
     Actuator,
     ActuatorName,
     CanInterfaceName,
@@ -16,29 +15,17 @@ from robot_factory.base.robot_base import (
     Robot,
     RobotController,
     RobotName,
-    ValidationName,
+    ValidationRuleName,
 )
 
-from .validation_policy import (
+from .robot_validation_rules import (
     require_can_interface_supported,
-    validate_robot_by_policy,
+    validate_robot_by_rules,
 )
 
 
 class RobotFactory:
-    """Factory for creating validated Robot data objects.
-
-    Robot, Actuator, IMU, and RobotController are pure data containers.
-
-    This factory owns:
-    - object construction
-    - tuple normalization
-    - validation-policy execution
-
-    validation_policy.py owns:
-    - actual validation rules
-    - validation registry
-    """
+    """Factory for creating validated static Robot data objects."""
 
     def create_actuator(
         self,
@@ -77,14 +64,14 @@ class RobotFactory:
         *,
         name: ControllerName,
         controller_type: ControllerType,
-        required_validations: Iterable[ValidationName] = (),
+        required_validation_rules: Iterable[ValidationRuleName] = (),
         metadata: dict[str, Any] | None = None,
         description: str = "",
     ) -> RobotController:
         return RobotController(
             name=name,
             controller_type=controller_type,
-            required_validations=tuple(required_validations),
+            required_validation_rules=tuple(required_validation_rules),
             metadata=metadata,
             description=description,
         )
@@ -97,7 +84,7 @@ class RobotFactory:
         imu: IMU,
         controller: RobotController,
         can_interfaces: Iterable[CanInterfaceName] = (),
-        required_validations: Iterable[ValidationName] = (),
+        required_validation_rules: Iterable[ValidationRuleName] = (),
         description: str = "",
     ) -> Robot:
         robot = Robot(
@@ -106,11 +93,11 @@ class RobotFactory:
             imu=imu,
             controller=controller,
             can_interfaces=tuple(can_interfaces),
-            required_validations=tuple(required_validations),
+            required_validation_rules=tuple(required_validation_rules),
             description=description,
         )
 
-        validate_robot_by_policy(robot)
+        validate_robot_by_rules(robot)
         return robot
 
     def require_can_interface_supported(self, robot: Robot, interface: str) -> None:

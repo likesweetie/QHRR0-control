@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from abc import abstractmethod
 
-from hal.can_bus import CANFrame
-from hal.hardware.can.device_protocol import CANDeviceProtocolBase
+from qhrr0.app.hal.can_bus import CANFrame
+from qhrr0.app.hal.hardware.can.device_protocol import CANDeviceProtocolBase
 
 from .state import ActuatorCommand, ActuatorState
 

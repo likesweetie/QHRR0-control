@@ -2,13 +2,6 @@
 
 processes:
   - name: "can_daemon"
-    command:
-      - "python3"
-      - "-m"
-      - "robot_controller.subprocesses.can_daemon.main"
-      - "--config-key"
-      - "robot_controller"
-      - "--replace-existing-socket"
     start_order: 0
     stop_order: 100
     new_terminal: true
@@ -20,14 +13,6 @@ processes:
     env_vars: {}
 
   - name: "aux_reader"
-    command:
-      - "python3"
-      - "-m"
-      - "robot_controller.subprocesses.aux_reader.main"
-      - "--controller-config-key"
-      - "robot_controller"
-      - "--joystick-dev"
-      - "/dev/input/js0"
     start_order: 20
     stop_order: 80
     new_terminal: true
@@ -39,12 +24,6 @@ processes:
     env_vars: {}
 
   - name: "task_controller"
-    command:
-      - "python3"
-      - "-m"
-      - "robot_controller.subprocesses.task_controller.main"
-      - "--config-key"
-      - "policy_runner"
     start_order: 30
     stop_order: 70
     new_terminal: true
@@ -53,18 +32,9 @@ processes:
       - "--wait"
       - "--"
     working_dir: "."
-    env_vars:
-      QHRR_PROJECT_ROOT: "."
-      TASK_CONTROL_HZ: "50.0"
-      TASK_RATE_LOG_INTERVAL_S: "1.0"
+    env_vars: {}
 
   - name: "dashboard"
-    command:
-      - "python3"
-      - "-m"
-      - "robot_controller.subprocesses.dashboard.main"
-      - "--config-key"
-      - "dashboard"
     start_order: 99
     stop_order: 99
     new_terminal: true
@@ -74,3 +44,17 @@ processes:
       - "--"
     working_dir: "."
     env_vars: {}
+
+subprocesses:
+  can_daemon:
+    replace_existing_socket: true
+
+  aux_reader:
+    joystick_dev: "/dev/input/js0"
+
+  task_controller:
+    control_hz: 50.0
+    rate_log_interval_s: 1.0
+    project_root: "."
+
+  dashboard: {}

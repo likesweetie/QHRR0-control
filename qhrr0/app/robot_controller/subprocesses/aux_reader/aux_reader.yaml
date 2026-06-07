@@ -1,0 +1,36 @@
+aux_reader:
+ joystick:
+    enable: true
+    poll_sleep_s: 0.01
+
+    axes:
+      lin_x:
+        axis: 1
+        scale: 1.0
+        invert: true
+        deadband: 0.05
+
+      lin_y:
+        axis: 0
+        scale: 1.0
+        invert: true
+        deadband: 0.05
+
+      yaw:
+        axis: 3
+        scale: 1.0
+        invert: true
+        deadband: 0.05
+
+    buttons:
+      a_button: 0
+      b_button: 1
+      x_button: 2
+      y_button: 3
+      lb_button: 4
+      rb_button: 5
+      back_button: 6
+      start_button: 7
+      guide_button: 8
+      l3_button: 9
+      r3_button: 10

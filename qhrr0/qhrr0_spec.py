@@ -1,7 +1,6 @@
-# qhrr0.py
 from __future__ import annotations
 
-from factory.robot_factory.robot_factory import RobotFactory
+from qhrr0.factory.robot_factory.robot_factory import RobotFactory
 
 
 _factory = RobotFactory()

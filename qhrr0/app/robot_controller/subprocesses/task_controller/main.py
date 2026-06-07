@@ -1,43 +1,30 @@
 from __future__ import annotations
 
 import argparse
-import os
 import signal
 import time
 from pathlib import Path
 
 import numpy as np
 
-from robot_controller.config import load_config_paths, load_robot_controller_config, resolve_config_arg
-from robot_controller.config.loader import load_yaml_mapping
-from robot_controller.subprocesses.task_controller.policy_runner import (
+from qhrr0.app.robot_controller.subprocesses.task_controller.policy_runner import (
     action_offset,
     load_policies,
     load_yaml,
     project_root,
     resolve_policy_config_dir,
 )
-from robot_controller.shm.types.aux_command import AuxCommandShm
-from robot_controller.shm.types.control_command import (
+from qhrr0.app.robot_controller.shm.types.aux_command import AuxCommandShm
+from qhrr0.app.robot_controller.shm.types.control_command import (
     MAX_CONTROL_TARGETS,
     ControlCommandC,
     ControlCommandShm,
 )
-from robot_controller.shm.types.robot_state import RobotStateShm
-from robot_controller.subprocesses.aux_buttons import mask_to_buttons
+from qhrr0.app.robot_controller.shm.types.robot_state import RobotStateShm
+from qhrr0.app.robot_controller.subprocesses.aux_buttons import mask_to_buttons
 
 
 RUNNING = True
-
-
-def _float_env(name: str) -> float | None:
-    value = os.environ.get(name)
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except ValueError as exc:
-        raise SystemExit(f"{name} must be a float, got {value!r}") from exc
 
 
 def _handle_signal(signum: int, _frame) -> None:
@@ -47,18 +34,19 @@ def _handle_signal(signum: int, _frame) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    control_hz_default = _float_env("TASK_CONTROL_HZ")
-    rate_log_interval_s_default = _float_env("TASK_RATE_LOG_INTERVAL_S")
     parser = argparse.ArgumentParser(description="QHRR Python task controller")
-    parser.add_argument("--config", type=Path, default=None)
-    parser.add_argument("--config-key", default=os.environ.get("POLICY_RUNNER_CONFIG_KEY"))
-    parser.add_argument("--controller-config", type=Path, default=None)
-    parser.add_argument("--controller-config-key", default=os.environ.get("ROBOT_CONTROLLER_CONFIG_KEY", "robot_controller"))
-    parser.add_argument("--robot-name", default=os.environ.get("ROBOT_NAME"))
-    parser.add_argument("--project-root", default=os.environ.get("QHRR_PROJECT_ROOT", "."))
-    parser.add_argument("--policy-config-dir", default=os.environ.get("POLICY_CONFIG_DIR"))
-    parser.add_argument("--control-hz", type=float, default=control_hz_default)
-    parser.add_argument("--rate-log-interval-s", type=float, default=rate_log_interval_s_default)
+    parser.add_argument("--policy-runner-config", type=Path, required=True)
+    parser.add_argument("--policy-list", type=Path, required=True)
+    parser.add_argument("--pd-config", type=Path, required=True)
+    parser.add_argument("--robot-name", required=True)
+    parser.add_argument("--can-ids", required=True)
+    parser.add_argument("--control-state-shm-name", required=True)
+    parser.add_argument("--aux-command-shm-name", required=True)
+    parser.add_argument("--mit-command-shm-name", required=True)
+    parser.add_argument("--project-root", default=".")
+    parser.add_argument("--policy-config-dir", default=None)
+    parser.add_argument("--control-hz", type=float, required=True)
+    parser.add_argument("--rate-log-interval-s", type=float, default=None)
     return parser.parse_args()
 
 
@@ -85,32 +73,35 @@ def _build_control_command(can_ids: list[int], q_target, *, kp: float, kd: float
     return command
 
 
+def _parse_can_ids(raw: str) -> list[int]:
+    can_ids = [int(part.strip(), 0) for part in raw.split(",") if part.strip()]
+    if not can_ids:
+        raise ValueError("--can-ids must contain at least one CAN ID")
+    if len(set(can_ids)) != len(can_ids):
+        raise ValueError("--can-ids must not contain duplicates")
+    return can_ids
+
+
 def main() -> int:
     args = parse_args()
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
     root = project_root(args.project_root)
-    config_paths = load_config_paths()
-    runner_config_path = resolve_config_arg(args.config, args.config_key, default_key="policy_runner", config_paths=config_paths)
-    runner_raw = load_yaml_mapping(runner_config_path)
-    runner_config = runner_raw.get("policy_runner", {})
-    if not isinstance(runner_config, dict):
+    runner_raw = load_yaml(args.policy_runner_config)
+    section = runner_raw.get("policy_runner")
+    if section is None:
+        runner_config = runner_raw
+    elif isinstance(section, dict):
+        runner_config = section
+    else:
         raise ValueError("policy_runner config section must be a mapping")
 
-    controller_config_path = resolve_config_arg(
-        args.controller_config,
-        args.controller_config_key,
-        default_key="robot_controller",
-        config_paths=config_paths,
-    )
-    controller_config = load_robot_controller_config(controller_config_path, config_paths=config_paths)
-    robot_name = args.robot_name or str(runner_config.get("robot_name") or controller_config.robot_platform.robot.name)
-    policy_list_key = str(runner_config.get("policy_list_key") or "policy_list")
+    robot_name = str(args.robot_name)
     policy_config_dir = (
         resolve_policy_config_dir(root, args.policy_config_dir, robot_name)
         if args.policy_config_dir
-        else config_paths.policy_path(policy_list_key).parent
+        else args.policy_list.parent
     )
     policies = load_policies(root, policy_config_dir)
     active_policy_name = runner_config.get("active_policy")
@@ -121,31 +112,25 @@ def main() -> int:
     )
     if active_policy is None:
         raise ValueError(f"active policy not found: {active_policy_name}")
-    pd_config_key = str(runner_config.get("pd_config_key") or "pd_config")
-    pd_config_path = config_paths.policy_path(pd_config_key)
-    pd_config = load_yaml(pd_config_path if pd_config_path.exists() else active_policy.directory / "pd_config.yaml")
+    pd_config = load_yaml(args.pd_config)
     kp = float(pd_config["kp"])
     kd = float(pd_config["kd"])
 
-    can_ids = [int(can_id) for can_id in controller_config.can.motors.can_ids]
+    can_ids = _parse_can_ids(args.can_ids)
 
-    control_state_reader = RobotStateShm.open(controller_config.shm.control_state.name)
-    aux_reader = AuxCommandShm.open(controller_config.shm.aux_command.name)
-    control_command_writer = ControlCommandShm.open(controller_config.shm.mit_command.name)
+    control_state_reader = RobotStateShm.open(args.control_state_shm_name)
+    aux_reader = AuxCommandShm.open(args.aux_command_shm_name)
+    control_command_writer = ControlCommandShm.open(args.mit_command_shm_name)
     print(
-        f"[task_controller] control={controller_config.shm.control_state.name} "
-        f"aux={controller_config.shm.aux_command.name} control_cmd={controller_config.shm.mit_command.name}",
+        f"[task_controller] control={args.control_state_shm_name} "
+        f"aux={args.aux_command_shm_name} control_cmd={args.mit_command_shm_name}",
         flush=True,
     )
 
-    control_hz = float(args.control_hz if args.control_hz is not None else runner_config.get("control_hz", 0.0))
+    control_hz = float(args.control_hz)
     if control_hz <= 0.0:
-        raise ValueError("policy_runner.control_hz or --control-hz must be > 0")
-    rate_log_interval_s = (
-        args.rate_log_interval_s
-        if args.rate_log_interval_s is not None
-        else runner_config.get("rate_log_interval_s")
-    )
+        raise ValueError("--control-hz must be > 0")
+    rate_log_interval_s = args.rate_log_interval_s
     if rate_log_interval_s is not None and float(rate_log_interval_s) < 0.0:
         raise ValueError("--rate-log-interval-s must be >= 0")
     rate_log_interval_s = None if rate_log_interval_s is None else float(rate_log_interval_s)

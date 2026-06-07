@@ -4,7 +4,7 @@ import ctypes
 
 from enum import IntEnum
 
-from robot_controller.shm.types.cstruct_type import CStructShm
+from qhrr0.app.robot_controller.shm.types.cstruct_type import CStructShm
 from .consts import *
 
 class OperatorCommandCode(IntEnum):

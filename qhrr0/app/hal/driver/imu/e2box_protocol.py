@@ -2,8 +2,8 @@ import math
 import struct
 import time
 
-from hal.can_bus import CANFrame
-from hal.hardware.can.imu import IMUProtocolBase
+from qhrr0.app.hal.can_bus import CANFrame
+from qhrr0.app.hal.hardware.can.imu import IMUProtocolBase
 from .robot_state import RobotPoseState
 
 

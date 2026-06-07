@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterable
 
-from robot_controller.shm.types.operator_command import (
+from qhrr0.app.robot_controller.shm.types.operator_command import (
     OPERATOR_ZERO_TARGET_CAPACITY,
     OPERATOR_ZERO_TARGET_MAGIC,
     OperatorCommandC,

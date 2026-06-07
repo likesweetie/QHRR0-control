@@ -16,9 +16,9 @@ import logging
 import threading
 from copy import deepcopy
 
-from hal.can_bus import CANFrame
-from hal.hardware.can.device_comm_manager import BestEffortCommManager, TransactionManager
-from hal.hardware.can.device_driver import CANDeviceDriverBase
+from qhrr0.app.hal.can_bus import CANFrame
+from qhrr0.app.hal.hardware.can.device_comm_manager import BestEffortCommManager, TransactionManager
+from qhrr0.app.hal.hardware.can.device_driver import CANDeviceDriverBase
 
 from .protocol import ActuatorProtocolBase
 from .state import ActuatorCommand, ActuatorState

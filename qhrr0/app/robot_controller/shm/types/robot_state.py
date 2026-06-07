@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import time
 
-from robot_controller.shm.types.cstruct_type import CStructShm
+from qhrr0.app.robot_controller.shm.types.cstruct_type import CStructShm
 
 from .consts import *
 
@@ -115,3 +115,12 @@ class RobotStateC(ctypes.Structure):
 
 class RobotStateShm(CStructShm[RobotStateC]):
     struct_type = RobotStateC
+
+
+def new_robot_state(controller_mode: int = 0) -> RobotStateC:
+    state = RobotStateC()
+    state.timestamp_ns = time.time_ns()
+    state.timestamp_unix = time.time()
+    state.timestamp_monotonic = time.monotonic()
+    state.controller_mode = int(controller_mode)
+    return state

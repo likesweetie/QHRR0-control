@@ -1,22 +1,16 @@
-# qhrr0/main.py
 from __future__ import annotations
 
 import argparse
 import signal
 from pathlib import Path
 
-from qhrr0.app.robot_controller.config import load_robot_controller_config
 from qhrr0.app.robot_controller.controller import RobotController
-from qhrr0.factory.app_factory.app_factory import AppFactory, HardwareSafetyOptions
-from qhrr0.qhrr0 import QHRR0
-
-
-DEFAULT_CONFIG = (
-    Path(__file__).resolve().parent
-    / "config"
-    / "app_config"
-    / "robot_controller.yaml"
+from qhrr0.app.robot_controller.process_supervisor import ProcessSupervisor
+from qhrr0.factory.app_factory.app_factory import (
+    DEFAULT_CONTROLLER_CONFIG,
+    AppFactory,
 )
+from qhrr0.factory.app_factory.schema import ProcessLaunchSpec
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=DEFAULT_CONFIG,
+        default=DEFAULT_CONTROLLER_CONFIG,
         help="QHRR0 robot controller YAML config path",
     )
     parser.add_argument(
@@ -45,30 +39,36 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def build_process_supervisor(processes: tuple[ProcessLaunchSpec, ...]) -> ProcessSupervisor:
+    supervisor = ProcessSupervisor()
+    for process in processes:
+        supervisor.add_process(
+            name=process.name,
+            command=process.command,
+            start_order=process.start_order,
+            stop_order=process.stop_order,
+            new_terminal=process.new_terminal,
+            terminal_command=process.terminal_command,
+            working_dir=process.working_dir,
+            env_vars=dict(process.env_vars),
+        )
+    return supervisor
+
+
 def main() -> None:
     args = parse_args()
-
-    config = load_robot_controller_config(args.config)
-
-    safety_options = HardwareSafetyOptions(
+    runtime_spec = AppFactory().create_robot_controller_runtime_spec(
+        controller_config_path=args.config,
         hardware_requested=bool(args.hardware),
         motor_enable_confirmed=bool(args.i_understand_this_can_enable_motors),
         estop_ok=bool(args.estop_ok),
     )
 
-    # Build/validation stage.
-    # AppFactory must not create app runtime implementation objects.
-    # It validates config + QHRR0 consistency and emits AppBuildSpec.
-    _app_spec = AppFactory().create_app_spec(
-        robot=QHRR0,
-        config=config,
-        options=safety_options,
+    process_supervisor = build_process_supervisor(runtime_spec.processes)
+    controller = RobotController(
+        runtime=runtime_spec.controller,
+        process_supervisor=process_supervisor,
     )
-
-    # Legacy runtime stage.
-    # Current RobotController still consumes config directly.
-    # Do not rewrite it in this pass.
-    controller = RobotController(config)
 
     def handle_signal(signum: int, _frame: object) -> None:
         print(f"[qhrr0] signal {signum}, shutting down")

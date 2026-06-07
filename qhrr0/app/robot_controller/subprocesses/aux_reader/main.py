@@ -6,11 +6,9 @@ import os
 import signal
 import struct
 import time
-from pathlib import Path
 
-from robot_controller.config import load_robot_controller_config, resolve_config_arg
-from robot_controller.shm.types.aux_command import AuxCommandC, AuxCommandShm
-from robot_controller.subprocesses.aux_buttons import buttons_to_mask
+from qhrr0.app.robot_controller.shm.types.aux_command import AuxCommandC, AuxCommandShm
+from qhrr0.app.robot_controller.subprocesses.aux_buttons import buttons_to_mask
 
 
 JS_EVENT_BUTTON = 0x01
@@ -85,8 +83,7 @@ def _publish(writer: AuxCommandShm, axes: list[float], buttons: list[bool]) -> N
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="QHRR MuJoCo joystick auxiliary reader")
-    parser.add_argument("--controller-config", type=Path, default=None)
-    parser.add_argument("--controller-config-key", default=os.environ.get("ROBOT_CONTROLLER_CONFIG_KEY", "robot_controller"))
+    parser.add_argument("--aux-command-shm-name", required=True)
     parser.add_argument("--joystick-dev", default=os.environ.get("JOYSTICK_DEV", "/dev/input/js0"))
     parser.add_argument("--poll-sleep-s", type=float, default=0.001)
     return parser.parse_args()
@@ -97,14 +94,8 @@ def main() -> int:
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    config_path = resolve_config_arg(
-        args.controller_config,
-        args.controller_config_key,
-        default_key="robot_controller",
-    )
-    config = load_robot_controller_config(config_path)
-    writer = AuxCommandShm.open(config.shm.aux_command.name)
-    print(f"[aux_reader] publishing aux command shm: {config.shm.aux_command.name}", flush=True)
+    writer = AuxCommandShm.open(args.aux_command_shm_name)
+    print(f"[aux_reader] publishing aux command shm: {args.aux_command_shm_name}", flush=True)
 
     fd = os.open(args.joystick_dev, os.O_RDONLY | os.O_NONBLOCK)
     print(f"[aux_reader] joystick device: {args.joystick_dev}", flush=True)

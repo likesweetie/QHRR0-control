@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 from typing import Optional
-from hal.hardware.can.imu.state import IMUState
+from qhrr0.app.hal.hardware.can.imu.state import IMUState
 
 @dataclass
 class RobotPoseState(IMUState):
