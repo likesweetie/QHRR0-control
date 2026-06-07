@@ -16,9 +16,14 @@ from robot_controller.subprocesses.task_controller.policy_runner import (
     project_root,
     resolve_policy_config_dir,
 )
-from robot_controller.shm.aux_command import AuxCommandShm, mask_to_buttons
-from robot_controller.shm.control_command import ControlCommandShm, ControlTarget
-from robot_controller.shm.robot_state import RobotStateShm
+from robot_controller.shm.types.aux_command import AuxCommandShm
+from robot_controller.shm.types.control_command import (
+    MAX_CONTROL_TARGETS,
+    ControlCommandC,
+    ControlCommandShm,
+)
+from robot_controller.shm.types.robot_state import RobotStateShm
+from robot_controller.subprocesses.aux_buttons import mask_to_buttons
 
 
 RUNNING = True
@@ -64,6 +69,23 @@ def _sleep_until_next_tick(tick_start: float, period_s: float) -> None:
         time.sleep(period_s - elapsed_s)
 
 
+def _build_control_command(can_ids: list[int], q_target, *, kp: float, kd: float) -> ControlCommandC:
+    if len(can_ids) > MAX_CONTROL_TARGETS:
+        raise ValueError(f"too many control targets: {len(can_ids)}/{MAX_CONTROL_TARGETS}")
+    command = ControlCommandC()
+    command.timestamp_ns = time.time_ns()
+    command.num_targets = len(can_ids)
+    for index, can_id in enumerate(can_ids):
+        target = command.targets[index]
+        target.can_id = int(can_id)
+        target.q = float(q_target[index])
+        target.dq = 0.0
+        target.kp = float(kp)
+        target.kd = float(kd)
+        target.tau = 0.0
+    return command
+
+
 def main() -> int:
     args = parse_args()
     signal.signal(signal.SIGINT, _handle_signal)
@@ -106,7 +128,7 @@ def main() -> int:
         print("[task_controller] waiting for control_state", flush=True)
         while RUNNING:
             control_state = control_state_reader.read_relaxed()
-            if int(control_state.timestamp_ns) != 0:
+            if control_state.is_initialized():
                 print("[task_controller] control_state received", flush=True)
                 break
             time.sleep(period_s)
@@ -118,7 +140,7 @@ def main() -> int:
             tick_start = time.monotonic()
 
             control_state = control_state_reader.read_relaxed()
-            if int(control_state.timestamp_ns) == 0:
+            if not control_state.is_initialized():
                 _sleep_until_next_tick(tick_start, period_s)
                 continue
 
@@ -127,10 +149,7 @@ def main() -> int:
             ang_vel_cmd = [float(value) for value in aux_state.ang_vel_target]
             buttons = mask_to_buttons(int(aux_state.button_mask))
 
-            actuators = {
-                int(item.can_id): item
-                for item in control_state.actuators[: int(control_state.actuator_count)]
-            }
+            actuators = {int(item.can_id): item for item in control_state.valid_actuators()}
             dof_pos = np.asarray(
                 [float(actuators[can_id].position_rad) for can_id in can_ids],
                 dtype=np.float32,
@@ -140,13 +159,7 @@ def main() -> int:
                 dtype=np.float32,
             )
             imu = control_state.imu
-            quat_xyzw = imu.quat_xyzw
-            quat = [
-                float(quat_xyzw[3]),
-                float(quat_xyzw[0]),
-                float(quat_xyzw[1]),
-                float(quat_xyzw[2]),
-            ]
+            quat = [float(value) for value in imu.quat_wxyz]
             gyro = np.asarray(
                 [float(value) for value in imu.angular_velocity_rad_s],
                 dtype=np.float32,
@@ -157,19 +170,7 @@ def main() -> int:
             active_policy.set_commands(float(lin_vel[0]), float(lin_vel[1]), float(ang_vel_cmd[2]), mode)
             q_target = (active_policy.compute_action()*mode) + action_offset(active_policy, robot_name, dof_pos, mode)
 
-            control_command_writer.write_targets(
-                [
-                    ControlTarget(
-                        can_id=can_id,
-                        q=float(q_target[index]),
-                        dq=0.0,
-                        kp=kp,
-                        kd=kd,
-                        tau=0.0,
-                    )
-                    for index, can_id in enumerate(can_ids)
-                ]
-            )
+            control_command_writer.write(_build_control_command(can_ids, q_target, kp=kp, kd=kd))
             published_count += 1
 
             now = time.monotonic()

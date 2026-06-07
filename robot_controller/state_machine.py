@@ -4,7 +4,10 @@ import time
 from dataclasses import dataclass
 from enum import IntEnum
 
-from robot_controller.shm.operator_command import OperatorCommandC, OperatorCommandCode
+from robot_controller.shm.types.operator_command import (
+    OperatorCommandC,
+    OperatorCommandCode,
+)
 
 
 class ControllerMode(IntEnum):

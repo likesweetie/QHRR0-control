@@ -10,14 +10,6 @@ from robot_controller.shm.buffer import BufferBackend, PlainBuffer
 CT = TypeVar("CT", bound=ctypes.Structure)
 
 
-def struct_size(struct_type: type[ctypes.Structure]) -> int:
-    return ctypes.sizeof(struct_type)
-
-
-def clear_buffer(buf) -> None:
-    buf[:] = b"\x00" * len(buf)
-
-
 class CStructShm(Generic[CT]):
     """Shared-memory channel for a fixed-size ctypes.Structure.
 
@@ -145,7 +137,7 @@ class CStructShm(Generic[CT]):
         For SeqLockBuffer / DoubleBuffer:
             segment_size > ctypes payload size
         """
-        return int(self.backend.total_size)
+        return int(self.buffer_backend.total_size)
 
     def read(self, *, consistent: bool = False, max_retries: int = 10) -> CT:
         """Read one structure from shared memory.
@@ -167,11 +159,11 @@ class CStructShm(Generic[CT]):
         return self.read_relaxed()
 
     def read_relaxed(self) -> CT:
-        payload = self.backend.read_relaxed(self._require_shm().buf)
+        payload = self.buffer_backend.read_relaxed(self._require_shm().buf)
         return self.struct_type.from_buffer_copy(payload)
 
     def read_consistent(self, *, max_retries: int = 10) -> CT:
-        payload = self.backend.read_consistent(
+        payload = self.buffer_backend.read_consistent(
             self._require_shm().buf,
             max_retries=max_retries,
         )
@@ -191,10 +183,10 @@ class CStructShm(Generic[CT]):
                 f"{self.struct_type.__name__}, got {type(value).__name__}"
             )
 
-        self.backend.write(self._require_shm().buf, bytes(value))
+        self.buffer_backend.write(self._require_shm().buf, bytes(value))
 
     def clear(self) -> None:
-        self.backend.clear(self._require_shm().buf)
+        self.buffer_backend.clear(self._require_shm().buf)
 
     def close(self) -> None:
         if self.shm is not None:

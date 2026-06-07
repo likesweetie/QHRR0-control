@@ -3,10 +3,10 @@ from __future__ import annotations
 from multiprocessing import shared_memory
 
 from robot_controller.core.config import ShmConfig
-from robot_controller.shm.aux_command import AuxCommandShm
-from robot_controller.shm.control_command import ControlCommandShm
-from robot_controller.shm.operator_command import OperatorCommandShm
-from robot_controller.shm.robot_state import RobotStateShm
+from robot_controller.shm.types.aux_command import AuxCommandShm
+from robot_controller.shm.types.control_command import ControlCommandShm
+from robot_controller.shm.types.operator_command import OperatorCommandShm
+from robot_controller.shm.types.robot_state import RobotStateShm
 
 
 class ShmManager:

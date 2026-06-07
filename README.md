@@ -63,8 +63,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 | `qhrr0_hw/` | QHRR0-specific SPG/DongilC actuator protocol, E2BOX IMU protocol, CAN ID map, joint map, calibration, robot spec |
 | `robot_controller/controller.py` | `RobotController` main runtime, state-machine update, direct HAL actuator command dispatch |
 | `robot_controller/state_machine.py` | `ControllerMode` and `OperatorCommandCode` transition policy |
-| `robot_controller/shm/` | ctypes C-compatible `ControlCommandShm`, `OperatorCommandShm`, `RobotStateShm` |
-| `robot_controller/telemetry/` | `RobotSnapshot`, `ShmStatePublisher`, `DashboardPublisher` |
+| `robot_controller/shm/` | SHM base/manager modules plus ctypes-compatible command/state types in `types/` |
 | `robot_controller/supervisor/` | child process lifecycle management |
 | `robot_controller/subprocesses/` | child process entrypoints: CAN daemon, task controller, dashboard, aux reader |
 | `docs/` | handoff, architecture, safety, runbook 문서 |
@@ -96,7 +95,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 - `ControlCommandShm`은 ctypes C-compatible layout이며 motor command tearing을 의도적으로 허용합니다.
 - seqlock, sequence counter, zero-set generation은 사용하지 않습니다.
 - 외부 GUI/operator process는 safety mode를 SHM에 쓰지 않고 `OperatorCommandShm`에 command만 씁니다.
-- telemetry는 control용 `ShmStatePublisher`와 dashboard용 `DashboardPublisher`로 분리되어 있습니다.
+- `RobotController`는 `RobotStateC`를 직접 구성해 control/dashboard `RobotStateShm`에 씁니다.
 - `runtime.mode: simulation`에서 `can0` 같은 real CAN interface는 reject됩니다.
 - `runtime.mode: hardware`에서 `vcan0`는 reject됩니다.
 - `can.motors.enter_on_start: true`는 simulation/hardware startup gate에서 금지됩니다.

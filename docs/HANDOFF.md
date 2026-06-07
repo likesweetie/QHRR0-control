@@ -46,7 +46,7 @@ flowchart LR
 | Policy command read | only in `ControllerMode.NORMAL` |
 | SHM consistency | motor command tearing is allowed |
 | Operator control | operator writes `OperatorCommandShm`; controller transitions state |
-| Telemetry | `ShmStatePublisher` and `DashboardPublisher` are separate |
+| Robot state publish | controller builds `RobotStateC` directly and writes control/dashboard `RobotStateShm` |
 
 Arm and run are intentionally split: `ENABLE` moves through `ENABLING` into `DAMPING`, and only `RUN` moves `DAMPING` into `NORMAL` policy output.
 

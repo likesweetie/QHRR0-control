@@ -20,16 +20,16 @@ def hex_data(data: bytes) -> str:
     return " ".join(f"{b:02X}" for b in data)
 
 
-def normalize_quat_xyzw(q: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
-    qx, qy, qz, qw = q
-    n = math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+def normalize_quat_wxyz(q: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    qw, qx, qy, qz = q
+    n = math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
     if n < 1e-12 or not math.isfinite(n):
-        return 0.0, 0.0, 0.0, 1.0
-    return qx / n, qy / n, qz / n, qw / n
+        return 1.0, 0.0, 0.0, 0.0
+    return qw / n, qx / n, qy / n, qz / n
 
 
-def projected_gravity_from_xyzw(q: tuple[float, float, float, float]) -> tuple[float, float, float]:
-    qx, qy, qz, qw = q
+def projected_gravity_from_wxyz(q: tuple[float, float, float, float]) -> tuple[float, float, float]:
+    qw, qx, qy, qz = q
     vx, vy, vz = 0.0, 0.0, -1.0
 
     tx = 2.0 * (qy * vz - qz * vy)
@@ -57,8 +57,10 @@ def decode_e2box_quat(
     qx = -(qx_raw / quat_scale)
     qw = qw_raw / quat_scale
 
-    quat = normalize_quat_xyzw((qx, qy, qz, qw)) if normalize else (qx, qy, qz, qw)
-    return quat, projected_gravity_from_xyzw(quat)
+    quat = (qw, qx, qy, qz)
+    if normalize:
+        quat = normalize_quat_wxyz(quat)
+    return quat, projected_gravity_from_wxyz(quat)
 
 
 def decode_e2box_gyro(data: bytes, *, gyro_scale: float) -> tuple[float, float, float]:

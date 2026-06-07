@@ -191,10 +191,10 @@ function renderImu(state) {
   const fresh = Number.isFinite(maxAge) && maxAge <= 0.25;
   $("imuFreshBadge").textContent = fresh ? "online" : maxAge === Infinity ? "never" : "timeout";
   $("imuFreshBadge").className = fresh ? "badge ok" : maxAge === Infinity ? "badge muted" : "badge danger";
-  setText("quatValue", fmt.vector(imu.quat_xyzw));
+  setText("quatValue", fmt.vector(imu.quat_wxyz));
   setText("gravityValue", fmt.vector(imu.projected_gravity_b));
   setText("gyroValue", fmt.vector(imu.angular_velocity_rad_s));
-  renderRobotAttitude(imu.quat_xyzw);
+  renderRobotAttitude(imu.quat_wxyz);
   setText("imuReq", imu.req_count || 0);
   setText("imuQuat", imu.quat_count || 0);
   setText("imuGyro", imu.gyro_count || 0);
@@ -203,7 +203,7 @@ function renderImu(state) {
 
 function normalizeQuat(quat) {
   if (!Array.isArray(quat) || quat.length < 4) return null;
-  const [x, y, z, w] = quat.map(Number);
+  const [w, x, y, z] = quat.map(Number);
   const norm = Math.hypot(x, y, z, w);
   if (!Number.isFinite(norm) || norm <= 1e-9) return null;
   return { x: x / norm, y: y / norm, z: z / norm, w: w / norm };
@@ -614,7 +614,7 @@ function renderShm(state) {
   const quatComm = imu.quat_comm || {};
   const gyroComm = imu.gyro_comm || {};
   $("shmImuGrid").innerHTML = kvHtml([
-    ["quat", fmt.vector(imu.quat_xyzw)],
+    ["quat", fmt.vector(imu.quat_wxyz)],
     ["gravity", fmt.vector(imu.projected_gravity_b)],
     ["gyro", fmt.vector(imu.angular_velocity_rad_s)],
     ["quat rx", fmt.maybe(quatComm.rx_count, 0)],

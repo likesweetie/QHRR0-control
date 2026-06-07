@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 import uuid
 
-from robot_controller.shm.control_command import ControlCommandShm, ControlTarget
+from robot_controller.shm.types.control_command import ControlCommandC, ControlCommandShm
 
 
 class ControlCommandShmTest(unittest.TestCase):
@@ -14,18 +14,15 @@ class ControlCommandShmTest(unittest.TestCase):
             writer = ControlCommandShm.open_writer(name)
             reader = ControlCommandShm.open_reader(name)
             try:
-                writer.write_targets(
-                    [
-                        ControlTarget(
-                            can_id=0x141,
-                            q=1.0,
-                            dq=2.0,
-                            kp=3.0,
-                            kd=4.0,
-                            tau=5.0,
-                        )
-                    ]
-                )
+                payload = ControlCommandC()
+                payload.num_targets = 1
+                payload.targets[0].can_id = 0x141
+                payload.targets[0].q = 1.0
+                payload.targets[0].dq = 2.0
+                payload.targets[0].kp = 3.0
+                payload.targets[0].kd = 4.0
+                payload.targets[0].tau = 5.0
+                writer.write(payload)
                 command = reader.read_relaxed()
                 self.assertEqual(command.num_targets, 1)
                 self.assertEqual(command.targets[0].can_id, 0x141)
@@ -40,4 +37,3 @@ class ControlCommandShmTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

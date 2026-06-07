@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 import uuid
 
-from robot_controller.shm.robot_state import RobotStateShm, new_robot_state
+from robot_controller.shm.types.robot_state import RobotStateShm, new_robot_state
 from robot_controller.state_machine import ControllerMode
 
 
@@ -14,7 +14,7 @@ class RobotStateShmTest(unittest.TestCase):
         try:
             reader = RobotStateShm.open_reader(name)
             try:
-                self.assertIsNone(reader.read_latest())
+                self.assertFalse(reader.read_relaxed().is_initialized())
             finally:
                 reader.close()
         finally:
@@ -29,10 +29,9 @@ class RobotStateShmTest(unittest.TestCase):
             reader = RobotStateShm.open_reader(name)
             try:
                 writer.write(new_robot_state(ControllerMode.NORMAL))
-                payload = reader.read_latest()
-                self.assertIsNotNone(payload)
-                assert payload is not None
-                self.assertEqual(payload["controller_state"], "NORMAL")
+                payload = reader.read_relaxed()
+                self.assertTrue(payload.is_initialized())
+                self.assertEqual(payload.controller_mode, ControllerMode.NORMAL)
             finally:
                 writer.close()
                 reader.close()

@@ -102,7 +102,7 @@ class E2BoxState:
     gyro_count: int = 0
     quat_last_t: float = 0.0
     gyro_last_t: float = 0.0
-    quat_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    quat_wxyz: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     projected_gravity_b: tuple[float, float, float] = (0.0, 0.0, -1.0)
     angular_velocity_rad_s: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
@@ -298,7 +298,7 @@ class MonitorState:
                 return
             self.imu.quat_count += 1
             self.imu.quat_last_t = now
-            self.imu.quat_xyzw = quat
+            self.imu.quat_wxyz = quat
             self.imu.projected_gravity_b = gravity
             return
         if frame.can_id == self.imu_gyro_id and frame.dlc == 8:
@@ -411,7 +411,7 @@ class MonitorState:
             "req_count": self.imu.req_count,
             "quat_count": self.imu.quat_count,
             "gyro_count": self.imu.gyro_count,
-            "quat_xyzw": list(self.imu.quat_xyzw),
+            "quat_wxyz": list(self.imu.quat_wxyz),
             "projected_gravity_b": list(self.imu.projected_gravity_b),
             "angular_velocity_rad_s": list(self.imu.angular_velocity_rad_s),
             "quat_age_s": None if self.imu.quat_last_t <= 0.0 else now - self.imu.quat_last_t,

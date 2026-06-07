@@ -10,8 +10,7 @@
 | `qhrr0_hw/` | QHRR0-specific actuator/IMU protocol, CAN ID map, joint map, calibration, robot spec |
 | `robot_controller/controller.py` | `RobotController` runtime, 상태 머신 update, 최종 actuator output dispatch |
 | `robot_controller/state_machine.py` | `ControllerMode`, `OperatorCommandCode`, transition policy |
-| `robot_controller/shm/` | ctypes C-compatible SHM views |
-| `robot_controller/telemetry/` | `RobotSnapshot`, SHM publisher, dashboard publisher |
+| `robot_controller/shm/` | SHM base/manager modules and ctypes command/state types |
 | `robot_controller/supervisor/` | child process lifecycle |
 | `robot_controller/subprocesses/` | `can_daemon`, `task_controller`, `dashboard`, `aux_reader` entrypoints |
 
@@ -63,11 +62,11 @@ flowchart TB
 | `self.imu` | HAL `IMUDriver` using QHRR0 E2BOX protocol |
 | `self.control_cmd_shm` | `ControlCommandShm` reader |
 | `self.operator_cmd_shm` | `OperatorCommandShm` reader |
+| `self.control_state_shm` | high-rate `RobotStateShm` writer |
+| `self.dashboard_state_shm` | low-rate dashboard `RobotStateShm` writer |
 | `self.state_machine` | `ControllerStateMachine` |
-| `self.shm_state_publisher` | high-rate control state publisher |
-| `self.dashboard_publisher` | low-rate dashboard state publisher |
 
-Actuator callbacks are registered in `RobotController._register_callbacks()`. Multiple actuator commands are simple for-loops inside `RobotController` private methods.
+Actuator callbacks are registered in `RobotController._register_callbacks()`. Multiple actuator commands are simple for-loops inside `RobotController` private methods. `RobotController` builds `RobotStateC` directly; there is no intermediate `RobotSnapshot` telemetry layer.
 
 ## CAN Daemon Responsibility
 

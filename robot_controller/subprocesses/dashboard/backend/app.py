@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .command_api import CommandError, CommandService
+from .operator_commands import OperatorCommandWriter
 from .robot_state_shm import DashboardRobotStateReader
 from .socketcan_io import CAN_FRAME_SIZE, open_can_socket, parse_can_frame
 from .state import MonitorState
@@ -23,7 +24,6 @@ from robot_controller.core.platform_config import (
     load_yaml_mapping,
     resolve_config_path,
 )
-from robot_controller.shm.operator_command import OperatorCommandShmWriter
 from robot_controller.supervisor import ProcessSupervisor
 from hal.can_bus.process_client import CANProcessClient
 
@@ -419,7 +419,7 @@ robot_state_reader = (
     if bool(nested(config, "robot_controller_state", "enabled"))
     else None
 )
-operator_commands = OperatorCommandShmWriter(
+operator_commands = OperatorCommandWriter(
     name=str(nested(config, "robot_controller_state", "operator_shm_name")),
     size_bytes=int(nested(config, "robot_controller_state", "operator_shm_size_bytes")),
     source="dashboard",

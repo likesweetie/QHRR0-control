@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 import uuid
 
-from robot_controller.shm.operator_command import (
+from robot_controller.shm.types.operator_command import (
     OPERATOR_ZERO_TARGET_MAGIC,
     OperatorCommandC,
     OperatorCommandCode,
@@ -11,6 +11,7 @@ from robot_controller.shm.operator_command import (
 )
 from robot_controller.controller import RobotController
 from robot_controller.state_machine import ControllerMode, ControllerStateMachine
+from robot_controller.subprocesses.dashboard.backend.operator_commands import build_operator_command
 
 
 class OperatorCommandShmTest(unittest.TestCase):
@@ -21,12 +22,15 @@ class OperatorCommandShmTest(unittest.TestCase):
             writer = OperatorCommandShm.open_writer(name)
             reader = OperatorCommandShm.open_reader(name)
             try:
-                writer.publish_zero_set(
-                    [
-                        (0x141, 8250),
-                        (0x142, -12000),
-                        (0x143, 2000),
-                    ]
+                writer.write(
+                    build_operator_command(
+                        OperatorCommandCode.ZERO_SET,
+                        zero_targets=[
+                            (0x141, 8250),
+                            (0x142, -12000),
+                            (0x143, 2000),
+                        ],
+                    )
                 )
 
                 command = reader.read_relaxed()
@@ -44,7 +48,7 @@ class OperatorCommandShmTest(unittest.TestCase):
                     {0x141: 8250, 0x142: -12000, 0x143: 2000},
                 )
 
-                writer.publish(OperatorCommandCode.ENABLE)
+                writer.write(build_operator_command(OperatorCommandCode.ENABLE))
                 command = reader.read_relaxed()
                 self.assertEqual(command.command, OperatorCommandCode.ENABLE)
                 self.assertEqual(command.zero_target_count, 0)

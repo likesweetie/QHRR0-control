@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import ctypes
-import time
-from dataclasses import dataclass
 
 from robot_controller.shm.cstruct_type import CStructShm
 
@@ -40,30 +38,5 @@ class ControlCommandC(ctypes.Structure):
 CONTROL_COMMAND_SIZE = ctypes.sizeof(ControlCommandC)
 
 
-@dataclass(frozen=True)
-class ControlTarget:
-    can_id: int
-    q: float
-    dq: float
-    kp: float
-    kd: float
-    tau: float
-
-
 class ControlCommandShm(CStructShm[ControlCommandC]):
     struct_type = ControlCommandC
-
-    def write_targets(self, targets: list[ControlTarget]) -> None:
-        if len(targets) > MAX_CONTROL_TARGETS:
-            raise ValueError(f"too many control targets: {len(targets)}/{MAX_CONTROL_TARGETS}")
-        command = ControlCommandC()
-        command.timestamp_ns = time.time_ns()
-        command.num_targets = len(targets)
-        for index, target in enumerate(targets):
-            command.targets[index].can_id = int(target.can_id)
-            command.targets[index].q = float(target.q)
-            command.targets[index].dq = float(target.dq)
-            command.targets[index].kp = float(target.kp)
-            command.targets[index].kd = float(target.kd)
-            command.targets[index].tau = float(target.tau)
-        self.write(command)

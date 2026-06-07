@@ -1,6 +1,10 @@
 # IPC / Shared Memory
 
-SHM is implemented as thin ctypes C-compatible views in `robot_controller/shm/`. JSON payload SHM and consistency counters are not used.
+SHM is implemented as thin ctypes C-compatible views in `robot_controller/shm/`.
+ctypes structures and their thin SHM wrappers live in `robot_controller/shm/types/`.
+The default buffer backend is the raw compatible `PlainBuffer`; `SeqLockBuffer`
+and `DoubleBuffer` exist for future consistency work but are not enabled by the
+current manager/config path.
 
 ## Segments
 
@@ -37,7 +41,8 @@ class ControlCommandC(ctypes.Structure):
     ]
 ```
 
-`read_relaxed()` returns a copy. Tearing between fields is accepted by design.
+`read_relaxed()` returns a copy. Tearing between fields is accepted by design
+for the current `PlainBuffer` layout.
 
 ## OperatorCommandShm
 
@@ -68,7 +73,9 @@ For `ZERO_SET`, `zero_targets` may carry per-actuator `can_id` plus signed int16
 
 ## RobotStateShm
 
-`RobotStateShm` is telemetry only. It contains controller mode, IMU fields, and up to 12 actuator states. It does not store a separate safety mode.
+`RobotStateShm` carries shared robot state. It contains controller mode, IMU fields, and
+up to 12 actuator states. The IMU quaternion field is `quat_wxyz`. It does not
+store a separate safety mode.
 
 ## Lifetime Rule
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 
 from hal.can_bus.process_transport import CANProcessTransport
@@ -14,23 +15,19 @@ from robot_controller.core.config import RobotControllerConfig
 from robot_controller.core.state import RobotControllerState
 from robot_controller.shm import (
     OPERATOR_ZERO_TARGET_MAGIC,
+    COMMAND_OUTPUT_SOURCE_VALUES,
+    MAX_ROBOT_STATE_ACTUATORS,
     ControlCommandC,
     ControlCommandShm,
+    CommandTargetStateC,
     OperatorCommandC,
     OperatorCommandCode,
     OperatorCommandShm,
+    RobotStateC,
+    RobotStateShm,
 )
 from robot_controller.state_machine import ControllerMode, ControllerStateMachine
 from robot_controller.supervisor import ProcessSupervisor
-from robot_controller.telemetry import (
-    ActuatorSnapshot,
-    CommandOutputSnapshot,
-    CommandTargetSnapshot,
-    DashboardPublisher,
-    ImuSnapshot,
-    RobotSnapshot,
-    ShmStatePublisher,
-)
 from robot_controller.shm.manager import ShmManager
 
 
@@ -53,15 +50,19 @@ class RobotController:
         self.shm_manager = ShmManager(config.shm)
         self.control_cmd_shm: ControlCommandShm | None = None
         self.operator_cmd_shm: OperatorCommandShm | None = None
+        self.control_state_shm: RobotStateShm | None = None
+        self.dashboard_state_shm: RobotStateShm | None = None
         self.state_machine = ControllerStateMachine(
             enable_duration_s=config.state_machine.enable_duration_s,
         )
-        self.shm_state_publisher: ShmStatePublisher | None = None
-        self.dashboard_publisher: DashboardPublisher | None = None
         self.processes = ProcessSupervisor(config.processes)
         self._last_output_source = "NONE"
         self._last_output_t = 0.0
-        self._last_output_targets: tuple[CommandTargetSnapshot, ...] = ()
+        self._last_output_targets: tuple[CommandTargetStateC, ...] = ()
+        self._control_state_publish_period_s = 1.0 / float(config.shm.control_state.publish_hz)
+        self._dashboard_state_publish_period_s = 1.0 / float(config.shm.dashboard_state.publish_hz)
+        self._last_control_state_publish_t = 0.0
+        self._last_dashboard_state_publish_t = 0.0
         self._last_consumed_operator_timestamp_ns: int | None = None
         self._last_ignored_operator_timestamp_ns: int | None = None
         self._running = False
@@ -74,14 +75,8 @@ class RobotController:
             self.shm_manager.create_all()
             self.control_cmd_shm = ControlCommandShm.open_reader(self.config.shm.mit_command.name)
             self.operator_cmd_shm = OperatorCommandShm.open_reader(self.config.shm.operator_command.name)
-            self.shm_state_publisher = ShmStatePublisher(
-                self.config.shm.control_state.name,
-                self.config.shm.control_state.publish_hz,
-            )
-            self.dashboard_publisher = DashboardPublisher(
-                self.config.shm.dashboard_state.name,
-                self.config.shm.dashboard_state.publish_hz,
-            )
+            self.control_state_shm = RobotStateShm.open_writer(self.config.shm.control_state.name)
+            self.dashboard_state_shm = RobotStateShm.open_writer(self.config.shm.dashboard_state.name)
 
             self.controller_state = RobotControllerState.START_CAN_DAEMON
             self.processes.start_by_name("can_daemon")
@@ -120,7 +115,7 @@ class RobotController:
     def run_once(self):
         return self.tick()
 
-    def tick(self) -> RobotSnapshot:
+    def tick(self) -> RobotStateC:
         now = time.monotonic()
         self._request_imu_on_tick()
 
@@ -335,7 +330,7 @@ class RobotController:
     def _send_damping_all(self) -> None:
         kd = float(self.config.safety.velocity_damping_kd)
         targets = tuple(
-            CommandTargetSnapshot(
+            _command_target_state(
                 can_id=can_id,
                 p_target_rad=0.0,
                 v_target_rad_s=0.0,
@@ -360,13 +355,13 @@ class RobotController:
 
     def _send_policy_command(self, cmd: ControlCommandC) -> None:
         n = min(int(cmd.num_targets), len(cmd.targets))
-        targets: list[CommandTargetSnapshot] = []
+        targets: list[CommandTargetStateC] = []
         for index in range(n):
             target = cmd.targets[index]
             actuator = self.actuators.get(int(target.can_id))
             if actuator is None:
                 continue
-            command_target = CommandTargetSnapshot(
+            command_target = _command_target_state(
                 can_id=int(target.can_id),
                 p_target_rad=float(target.q),
                 v_target_rad_s=float(target.dq),
@@ -389,73 +384,107 @@ class RobotController:
     def _record_output_command(
         self,
         source: str,
-        targets: tuple[CommandTargetSnapshot, ...],
+        targets: tuple[CommandTargetStateC, ...],
     ) -> None:
         self._last_output_source = source
         self._last_output_t = time.monotonic()
         self._last_output_targets = targets
 
-    def _publish_state(self, *, force: bool = False) -> RobotSnapshot:
-        snapshot = self._make_snapshot()
-        if self.shm_state_publisher is not None:
-            self.shm_state_publisher.publish(snapshot, force=force)
-        if self.dashboard_publisher is not None:
-            self.dashboard_publisher.publish(snapshot, force=force)
-        return snapshot
+    def _publish_state(self, *, force: bool = False) -> RobotStateC:
+        state = self._build_robot_state_c()
+        now = time.monotonic()
+        if (
+            self.control_state_shm is not None
+            and (force or now - self._last_control_state_publish_t >= self._control_state_publish_period_s)
+        ):
+            self.control_state_shm.write(state)
+            self._last_control_state_publish_t = now
+        if (
+            self.dashboard_state_shm is not None
+            and (force or now - self._last_dashboard_state_publish_t >= self._dashboard_state_publish_period_s)
+        ):
+            self.dashboard_state_shm.write(state)
+            self._last_dashboard_state_publish_t = now
+        return state
 
-    def _make_snapshot(self) -> RobotSnapshot:
+    def _build_robot_state_c(self) -> RobotStateC:
         now = time.monotonic()
         self.imu.update_fault_flags()
         imu_state = self.imu.get_state()
         imu_comm = self.imu.get_comm_status()
-        actuator_items = []
-        for can_id, driver in sorted(self.actuators.items()):
-            state = driver.get_state()
-            comm = driver.update_fault_flags()
-            age_s = None if state.last_feedback_t <= 0.0 else max(0.0, now - state.last_feedback_t)
-            actuator_items.append(
-                ActuatorSnapshot(
-                    can_id=can_id,
-                    position_rad=state.position_rad,
-                    velocity_rad_s=state.velocity_rad_s,
-                    torque_nm=state.torque_nm,
-                    current_a=state.current_a,
-                    temperature_c=state.temperature_c,
-                    fault_code=state.fault_code,
-                    is_enabled=state.is_enabled,
-                    last_feedback_t=state.last_feedback_t,
-                    age_s=age_s,
-                    online=bool(comm.is_online),
-                    stale=bool(comm.is_stale),
-                )
-            )
-        return RobotSnapshot(
-            mode=self.state_machine.mode,
-            timestamp_monotonic=now,
-            timestamp_unix=time.time(),
-            actuators=tuple(actuator_items),
-            imu=ImuSnapshot(
-                quat_xyzw=imu_state.quat_xyzw,
-                projected_gravity_b=getattr(imu_state, "projected_gravity_b", None),
-                angular_velocity_rad_s=imu_state.angular_velocity_rad_s,
-                last_quat_t=imu_state.last_quat_t,
-                last_gyro_t=imu_state.last_gyro_t,
-                quat_online=bool(imu_comm["quat"].is_online),
-                gyro_online=bool(imu_comm["gyro"].is_online),
-                quat_stale=bool(imu_comm["quat"].is_stale),
-                gyro_stale=bool(imu_comm["gyro"].is_stale),
-            ),
-            command_output=CommandOutputSnapshot(
-                source=self._last_output_source,
-                timestamp_monotonic=self._last_output_t,
-                targets=self._last_output_targets,
-            ),
+
+        robot_state = RobotStateC()
+        robot_state.timestamp_ns = time.time_ns()
+        robot_state.timestamp_monotonic = now
+        robot_state.timestamp_unix = time.time()
+        robot_state.controller_mode = int(self.state_machine.mode)
+        robot_state.actuator_count = min(len(self.actuators), MAX_ROBOT_STATE_ACTUATORS)
+
+        _fill_float_array(
+            robot_state.imu.quat_wxyz,
+            _quat_xyzw_to_wxyz(imu_state.quat_xyzw),
+            (1.0, 0.0, 0.0, 0.0),
         )
+        _fill_float_array(
+            robot_state.imu.projected_gravity_b,
+            getattr(imu_state, "projected_gravity_b", None),
+            (0.0, 0.0, -1.0),
+        )
+        _fill_float_array(
+            robot_state.imu.angular_velocity_rad_s,
+            imu_state.angular_velocity_rad_s,
+            (0.0, 0.0, 0.0),
+        )
+        robot_state.imu.last_quat_t = float(imu_state.last_quat_t)
+        robot_state.imu.last_gyro_t = float(imu_state.last_gyro_t)
+        robot_state.imu.quat_online = int(bool(imu_comm["quat"].is_online))
+        robot_state.imu.gyro_online = int(bool(imu_comm["gyro"].is_online))
+        robot_state.imu.quat_stale = int(bool(imu_comm["quat"].is_stale))
+        robot_state.imu.gyro_stale = int(bool(imu_comm["gyro"].is_stale))
+
+        for index, (can_id, driver) in enumerate(sorted(self.actuators.items())):
+            if index >= MAX_ROBOT_STATE_ACTUATORS:
+                break
+            actuator_state = driver.get_state()
+            comm = driver.update_fault_flags()
+            age_s = (
+                None
+                if actuator_state.last_feedback_t <= 0.0
+                else max(0.0, now - actuator_state.last_feedback_t)
+            )
+            out = robot_state.actuators[index]
+            out.can_id = int(can_id)
+            out.position_rad = _float_or_zero(actuator_state.position_rad)
+            out.velocity_rad_s = _float_or_zero(actuator_state.velocity_rad_s)
+            out.torque_nm = _float_or_zero(actuator_state.torque_nm)
+            out.current_a = _float_or_zero(actuator_state.current_a)
+            out.temperature_c = _float_or_zero(actuator_state.temperature_c)
+            out.fault_code = -1 if actuator_state.fault_code is None else int(actuator_state.fault_code)
+            out.is_enabled = -1 if actuator_state.is_enabled is None else int(bool(actuator_state.is_enabled))
+            out.last_feedback_t = float(actuator_state.last_feedback_t)
+            out.age_s = -1.0 if age_s is None else float(age_s)
+            out.online = int(bool(comm.is_online))
+            out.stale = int(bool(comm.is_stale))
+
+        command_output = robot_state.command_output
+        command_output.timestamp_monotonic = float(self._last_output_t)
+        command_output.source = int(COMMAND_OUTPUT_SOURCE_VALUES.get(self._last_output_source, 0))
+        command_output.target_count = min(len(self._last_output_targets), MAX_ROBOT_STATE_ACTUATORS)
+        for index, item in enumerate(self._last_output_targets[:MAX_ROBOT_STATE_ACTUATORS]):
+            out = command_output.targets[index]
+            out.can_id = int(item.can_id)
+            out.p_target_rad = _float_or_zero(item.p_target_rad)
+            out.v_target_rad_s = _float_or_zero(item.v_target_rad_s)
+            out.kp = _float_or_zero(item.kp)
+            out.kd = _float_or_zero(item.kd)
+            out.tau_target_nm = _float_or_zero(item.tau_target_nm)
+
+        return robot_state
 
     def _close_runtime(self) -> None:
         for item in (
-            self.shm_state_publisher,
-            self.dashboard_publisher,
+            self.control_state_shm,
+            self.dashboard_state_shm,
             self.control_cmd_shm,
             self.operator_cmd_shm,
         ):
@@ -463,3 +492,43 @@ class RobotController:
                 item.close()
         self.can.close()
         self.shm_manager.close_all()
+
+
+def _quat_xyzw_to_wxyz(
+    quat_xyzw: tuple[float, float, float, float] | None,
+) -> tuple[float, float, float, float] | None:
+    if quat_xyzw is None:
+        return None
+    qx, qy, qz, qw = quat_xyzw
+    return qw, qx, qy, qz
+
+
+def _command_target_state(
+    *,
+    can_id: int,
+    p_target_rad: float,
+    v_target_rad_s: float,
+    kp: float,
+    kd: float,
+    tau_target_nm: float,
+) -> CommandTargetStateC:
+    target = CommandTargetStateC()
+    target.can_id = int(can_id)
+    target.p_target_rad = float(p_target_rad)
+    target.v_target_rad_s = float(v_target_rad_s)
+    target.kp = float(kp)
+    target.kd = float(kd)
+    target.tau_target_nm = float(tau_target_nm)
+    return target
+
+
+def _fill_float_array(target, values, fallback) -> None:
+    source = fallback if values is None else values
+    for index, value in enumerate(source):
+        target[index] = float(value)
+
+
+def _float_or_zero(value: float | None) -> float:
+    if value is None or not math.isfinite(float(value)):
+        return 0.0
+    return float(value)

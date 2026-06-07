@@ -1,97 +1,136 @@
 # TODO: SHM Refactor Follow-ups
 
-This refactor keeps `robot_controller/shm/` as the only edited code area and
-does not directly modify subprocesses, telemetry, dashboard, controller, docs,
-or tests outside the SHM package.
+This file tracks SHM refactor follow-ups and the current migration state.
 
-## Why external files were not edited
+## Completed in current migration
 
-The current change is intentionally scoped to `robot_controller/shm/` plus this
-root TODO file. Several callers outside `shm` still depend on convenience APIs
-that build commands, convert button masks, convert quaternion conventions, or
-turn raw ctypes state into dashboard dictionaries. Those behaviors should move
-to application-level code in a follow-up change so that SHM wrappers remain raw
-transport only.
+- External callers now build `ControlCommandC`, `AuxCommandC`, and
+  `OperatorCommandC` directly and call `write()`.
+- `ControlCommandShm.write_targets()`, `AuxCommandShm.publish()`,
+  `OperatorCommandShm.publish()`, `OperatorCommandShm.publish_zero_set()`, and
+  `RobotStateShm.read_latest()` were removed from SHM wrappers.
+- Button mask helpers moved out of SHM to
+  `robot_controller/subprocesses/aux_buttons.py`.
+- Dashboard operator command construction moved out of SHM to
+  `robot_controller/subprocesses/dashboard/backend/operator_commands.py`.
+- Dashboard robot-state dict conversion moved out of SHM to
+  `robot_controller/subprocesses/dashboard/backend/robot_state_shm.py`.
+- `robot_controller/telemetry/` was removed. The former `RobotSnapshot`,
+  `ShmStatePublisher`, and `DashboardPublisher` layer was only an intermediate
+  conversion path, not a real telemetry transport.
+- `RobotController` now builds `RobotStateC` directly and writes both
+  control/dashboard `RobotStateShm` channels with private rate limiting.
+- `RobotController.tick()` now returns `RobotStateC` instead of `RobotSnapshot`.
+- SHM and dashboard/controller policy paths now use `quat_wxyz`.
+- `ControlTarget` compatibility dataclass was removed from SHM.
+- Buffer backends are exported from `robot_controller.shm.__init__`.
+- Unused `struct_size()` and `clear_buffer()` helpers were removed from
+  `cstruct_type.py`.
+- Focused buffer backend tests were added.
 
 ## Deprecated SHM convenience API migration
 
-- `ControlCommandShm.write_targets()` is still used by
-  `robot_controller/subprocesses/task_controller/main.py`,
-  `robot_controller/subprocesses/joint_initializer/main.py`, and
-  `tests/test_control_command_shm.py`. Move `ControlCommandC` construction and
-  timestamp assignment into the application layer, then call `write()`.
-- `AuxCommandShm.publish()` is still used by
-  `robot_controller/subprocesses/aux_reader/main.py`. Move `AuxCommandC`
-  construction, timestamp assignment, and button mask conversion into the
-  aux reader/application layer, then call `write()`.
-- `OperatorCommandShm.publish()` and `publish_zero_set()` are still used through
-  `OperatorCommandShmWriter` and dashboard endpoints in
-  `robot_controller/subprocesses/dashboard/backend/app.py`, as well as
-  `tests/test_operator_command_shm.py`. Move operator command construction,
-  command-code selection, target mask handling, and zero-set target validation
-  into the dashboard/operator application layer, then call `write()`.
-- `RobotStateShm.read_latest()` is still used by
-  `robot_controller/subprocesses/dashboard/backend/robot_state_shm.py` and
-  `tests/test_robot_state_shm.py`. Move dashboard dictionary conversion out of
-  the SHM wrapper and have the dashboard reader call `read_relaxed()`.
+Complete. SHM wrappers now expose raw transport methods only.
+
+## Current SHM update notes
+
+- `robot_controller/shm/cstruct_type.py` is now the common ctypes SHM wrapper
+  module. `robot_controller/shm/cstruct.py` no longer exists.
+- `robot_controller/shm/buffer.py` introduces byte-level buffer backends:
+  `PlainBuffer`, `SeqLockBuffer`, and `DoubleBuffer`.
+- ctypes structures and thin SHM wrappers live under
+  `robot_controller/shm/types/`.
+- `CStructShm` still defaults to `PlainBuffer`, so existing SHM payload layout
+  remains compatible unless callers explicitly pass a different backend.
+- `size_bytes()` still means ctypes payload size. `segment_size_bytes()` now
+  means the actual shared-memory segment size required by the selected backend.
+- No creator/reader/writer path currently selects `SeqLockBuffer` or
+  `DoubleBuffer`; `ShmManager` and application callers still use the default
+  `PlainBuffer`.
 
 ## Raw SHM field access that can use ctypes helpers
 
-- In `robot_controller/subprocesses/task_controller/main.py`, replace the inline
-  actuator dictionary built from
-  `control_state.actuators[: int(control_state.actuator_count)]` with
-  `RobotStateC.valid_actuators()` or `RobotStateC.actuator_by_can_id()`.
-- Apply the same actuator lookup migration in
-  `robot_controller/subprocesses/joint_initializer/main.py`.
-- Use `RobotStateC.is_initialized()` instead of repeated
-  `int(control_state.timestamp_ns) == 0` checks where possible.
+Complete for `task_controller/main.py` and `joint_initializer/main.py`.
 
 ## Quaternion convention cleanup
 
-- `task_controller/main.py` and `joint_initializer/main.py` currently convert
-  IMU quaternion order inline from `quat_xyzw` to policy-facing `wxyz`.
-  Centralize that conversion at the application boundary and use
-  `ImuStateC.quat_wxyz()` where the source is `RobotStateC.imu`.
-- Keep SHM field names explicit. `quat_xyzw` remains the shared-memory layout
-  field; policy code should decide whether it needs `xyzw` or `wxyz`.
+- Project-facing controller/dashboard/SHM quaternion convention is `wxyz`.
+- `RobotStateC.imu.quat_wxyz` is the shared-memory layout field.
+- Hardware IMU sources that still expose `quat_xyzw` are converted once at the
+  controller snapshot boundary.
+- Task controller and joint initializer read `quat_wxyz` directly from SHM.
 
 ## Button mask and dashboard conversion cleanup
 
-- Move `buttons_to_mask()` and `mask_to_buttons()` to the joystick/task
-  application layer after callers are updated. They are currently kept for
-  compatibility.
-- Move `robot_state_to_dict()` and the dashboard-specific helpers in
-  `robot_controller/shm/robot_state.py` into dashboard/application code once
-  `RobotStateShm.read_latest()` is retired.
-- Move the compatibility `ControlTarget` dataclass out of SHM when
-  `write_targets()` callers are migrated.
-- Move `OperatorCommandShmWriter` out of SHM when dashboard/operator callers
-  construct `OperatorCommandC` directly.
+Complete.
 
-## Future SHM consistency and metadata
+## Telemetry removal notes
 
-- Consider adding `read_consistent()` with a sequence counter or double-read
-  guard for readers that cannot tolerate torn multi-field frames.
-- Consider adding a small SHM header with magic, schema/version, payload size,
-  and possibly writer timestamp/sequence fields.
+- Removal reason: the deleted telemetry package was not ROS2, WebSocket,
+  logging, or another real transport. It only created `RobotSnapshot`
+  dataclasses and converted them into `RobotStateC`, duplicating the SHM SOT.
+- `snapshot_to_cstruct()` was removed. Its field population logic now lives in
+  `RobotController._build_robot_state_c()`.
+- `RobotStateShm` remains raw transport only; no dashboard/application
+  conversion functions were added back to the wrapper.
+- Dashboard functionality remains active through `RobotStateShm`; dashboard
+  dict conversion currently lives in
+  `robot_controller/subprocesses/dashboard/backend/robot_state_shm.py`.
+- Follow-up: add focused dashboard reader tests around
+  `robot_state_to_dict()` and `_read_channel()` now that conversion lives in the
+  dashboard backend.
+- `RobotStateShm.read_latest()` has already been removed. Future callers should
+  use `read_relaxed()` or `read(consistent=True)` once a non-plain backend is
+  intentionally selected.
+
+## Buffer backend follow-ups
+
+- Decide backend policy per channel before enabling consistency protocols.
+  Likely candidates: keep command channels on `PlainBuffer`; evaluate
+  `SeqLockBuffer` or `DoubleBuffer` for `RobotStateShm` control/dashboard state
+  channels where torn multi-field frames matter more.
+- Wire backend selection through configuration or manager construction only
+  after all creator/reader/writer processes can agree on the same backend and
+  segment size.
+- Update config/docs if non-plain backends are enabled. Existing
+  `shm.*.size_bytes` values are allocation sizes; for `SeqLockBuffer` and
+  `DoubleBuffer`, the allocation must be at least `segment_size_bytes()`, not
+  just `size_bytes()`.
+- Add compatibility checks before mixed backends can be used in production. A
+  reader opened with `PlainBuffer` against a segment created with
+  `SeqLockBuffer` or `DoubleBuffer` will interpret the bytes incorrectly unless
+  both sides agree out of band.
+- Consider adding a small SHM header with magic, schema/version, backend id,
+  payload size, segment size, and possibly writer timestamp/sequence fields.
 - Keep `read_relaxed()` available for low-overhead callers that explicitly
-  accept tearing.
+  accept tearing. Treat `read(consistent=True)` as an opt-in path that requires
+  a backend supporting `read_consistent()`.
+- Consider a temporary `robot_controller/shm/cstruct.py` compatibility shim only
+  if external code outside this repository imports `robot_controller.shm.cstruct`.
+  Current in-repo imports use `cstruct_type.py`.
 
 ## Tests likely affected by follow-up migrations
+
+Updated:
 
 - `tests/test_robot_state_shm.py`
 - `tests/test_control_command_shm.py`
 - `tests/test_operator_command_shm.py`
-- Any dashboard reader tests that cover
+- `tests/test_shm_buffer.py`
+- Targeted compile/test coverage for direct `RobotStateC` construction path.
+
+Still useful to add later:
+
+- Dashboard reader tests for
   `robot_controller/subprocesses/dashboard/backend/robot_state_shm.py`
-- Any task controller or joint initializer tests that assert policy input
-  construction, actuator lookup, quaternion convention, or command publication
+- Controller tests that assert `tick()` / `run_once()` return `RobotStateC`
+  and that rate-limited control/dashboard writes preserve dashboard behavior.
+- Task controller / joint initializer tests that assert policy input
+  construction, actuator lookup, quaternion convention, and command publication
 
 ## Follow-up instructions
 
-1. First migrate external callers to build ctypes structures directly and call
-   `write()`/`read_relaxed()`.
-2. Then remove the deprecated compatibility methods from SHM wrappers.
-3. Finally move dashboard/button/operator helper functions out of
-   `robot_controller/shm/` so that the SHM package contains only ctypes layout
-   definitions, thin layout helpers, and raw transport.
+1. Decide per-channel backend policy and whether to enable `read_consistent()`.
+2. Add SHM header/magic/version/backend metadata before production use of
+   non-plain backends.
+3. Update config/docs once backend selection is exposed.

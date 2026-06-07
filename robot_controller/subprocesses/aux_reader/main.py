@@ -9,7 +9,8 @@ import time
 from pathlib import Path
 
 from robot_controller.core.config import load_robot_controller_config
-from robot_controller.shm.aux_command import AuxCommandShm
+from robot_controller.shm.types.aux_command import AuxCommandC, AuxCommandShm
+from robot_controller.subprocesses.aux_buttons import buttons_to_mask
 
 
 JS_EVENT_BUTTON = 0x01
@@ -73,11 +74,13 @@ def _button_targets(buttons: list[bool]) -> dict[str, bool]:
 
 def _publish(writer: AuxCommandShm, axes: list[float], buttons: list[bool]) -> None:
     lin_vel_target, ang_vel_target = _axis_targets(axes)
-    writer.publish(
-        lin_vel_target=lin_vel_target,
-        ang_vel_target=ang_vel_target,
-        buttons=_button_targets(buttons),
-    )
+    command = AuxCommandC()
+    command.timestamp_ns = time.time_ns()
+    for index in range(3):
+        command.lin_vel_target[index] = float(lin_vel_target[index])
+        command.ang_vel_target[index] = float(ang_vel_target[index])
+    command.button_mask = buttons_to_mask(_button_targets(buttons))
+    writer.write(command)
 
 
 def parse_args() -> argparse.Namespace:

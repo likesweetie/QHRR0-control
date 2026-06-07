@@ -4,7 +4,14 @@ import json
 import time
 from typing import Any
 
-from robot_controller.shm.robot_state import RobotStateShm as RobotStateShmReader
+from robot_controller.shm.types.robot_state import (
+    COMMAND_OUTPUT_SOURCE_NAMES,
+    ActuatorStateC,
+    CommandOutputStateC,
+    CommandTargetStateC,
+    RobotStateC,
+    RobotStateShm,
+)
 
 from .state import MonitorState, hex_id
 
@@ -21,8 +28,8 @@ class DashboardRobotStateReader:
         self.dashboard_shm_name = dashboard_shm_name
         self.stale_timeout_s = float(stale_timeout_s)
         self.state = state
-        self.control_reader = RobotStateShmReader(control_shm_name)
-        self.dashboard_reader = RobotStateShmReader(dashboard_shm_name)
+        self.control_reader = RobotStateShm(control_shm_name)
+        self.dashboard_reader = RobotStateShm(dashboard_shm_name)
 
     def close(self) -> None:
         self.control_reader.close()
@@ -58,13 +65,14 @@ class DashboardRobotStateReader:
     def _read_channel(
         self,
         *,
-        reader: RobotStateShmReader,
+        reader: RobotStateShm,
         shm_key: str,
         shm_name: str,
         expected_schema: str,
     ) -> dict[str, Any]:
         try:
-            robot_state = reader.read_latest()
+            state = reader.read_relaxed()
+            robot_state = None if not state.is_initialized() else robot_state_to_dict(state)
         except FileNotFoundError as exc:
             return self._channel_result(shm_key, shm_name, "disconnected", None, str(exc))
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
@@ -105,7 +113,7 @@ class DashboardRobotStateReader:
             "req_count": base["imu"]["req_count"],
             "quat_count": base["imu"]["quat_count"],
             "gyro_count": base["imu"]["gyro_count"],
-            "quat_xyzw": imu.get("quat_xyzw") or [0.0, 0.0, 0.0, 1.0],
+            "quat_wxyz": imu.get("quat_wxyz") or [1.0, 0.0, 0.0, 0.0],
             "projected_gravity_b": imu.get("projected_gravity_b") or [0.0, 0.0, -1.0],
             "angular_velocity_rad_s": imu.get("angular_velocity_rad_s") or [0.0, 0.0, 0.0],
             "quat_age_s": self._age(now_monotonic, self._float_or_zero(imu.get("last_quat_t"))),
@@ -317,3 +325,90 @@ class DashboardRobotStateReader:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
+
+
+def robot_state_to_dict(state: RobotStateC) -> dict[str, Any]:
+    imu = state.imu
+    return {
+        "schema": "qhrr.robot_state.cstruct.v1",
+        "timestamp_monotonic": float(state.timestamp_monotonic),
+        "timestamp_unix": float(state.timestamp_unix),
+        "controller_state": _mode_name(int(state.controller_mode)),
+        "imu": {
+            "quat_wxyz": [float(value) for value in imu.quat_wxyz],
+            "projected_gravity_b": [float(value) for value in imu.projected_gravity_b],
+            "angular_velocity_rad_s": [float(value) for value in imu.angular_velocity_rad_s],
+            "last_quat_t": float(imu.last_quat_t),
+            "last_gyro_t": float(imu.last_gyro_t),
+            "quat_online": bool(imu.quat_online),
+            "gyro_online": bool(imu.gyro_online),
+            "quat_stale": bool(imu.quat_stale),
+            "gyro_stale": bool(imu.gyro_stale),
+        },
+        "actuators": [
+            _actuator_to_dict(item)
+            for item in state.valid_actuators()
+        ],
+        "command_output": _command_output_to_dict(state.command_output),
+    }
+
+
+def _actuator_to_dict(item: ActuatorStateC) -> dict[str, Any]:
+    has_feedback = float(item.last_feedback_t) > 0.0
+    return {
+        "can_id": int(item.can_id),
+        "position_rad": float(item.position_rad) if has_feedback else None,
+        "velocity_rad_s": float(item.velocity_rad_s) if has_feedback else None,
+        "torque_nm": float(item.torque_nm) if has_feedback else None,
+        "current_a": float(item.current_a) if has_feedback else None,
+        "temperature_c": float(item.temperature_c) if has_feedback else None,
+        "fault_code": None if int(item.fault_code) < 0 else int(item.fault_code),
+        "is_enabled": None if int(item.is_enabled) < 0 else bool(item.is_enabled),
+        "last_feedback_t": float(item.last_feedback_t),
+        "age_s": None if float(item.age_s) < 0.0 else float(item.age_s),
+        "online": bool(item.online),
+        "stale": bool(item.stale),
+    }
+
+
+def _command_output_to_dict(item: CommandOutputStateC) -> dict[str, Any]:
+    timestamp_monotonic = float(item.timestamp_monotonic)
+    age_s = None
+    if timestamp_monotonic > 0.0:
+        age_s = max(0.0, time.monotonic() - timestamp_monotonic)
+    return {
+        "status": "online" if timestamp_monotonic > 0.0 else "waiting",
+        "source": COMMAND_OUTPUT_SOURCE_NAMES.get(int(item.source), f"SOURCE_{int(item.source)}"),
+        "timestamp_monotonic": timestamp_monotonic,
+        "age_s": age_s,
+        "target_count": item.valid_target_count(),
+        "targets": [
+            _command_target_to_dict(target)
+            for target in item.valid_targets()
+        ],
+        "error": None,
+    }
+
+
+def _command_target_to_dict(item: CommandTargetStateC) -> dict[str, Any]:
+    can_id = int(item.can_id)
+    return {
+        "can_id": f"0x{can_id:X}",
+        "p_target_rad": float(item.p_target_rad),
+        "v_target_rad_s": float(item.v_target_rad_s),
+        "kp": float(item.kp),
+        "kd": float(item.kd),
+        "tau_target_nm": float(item.tau_target_nm),
+    }
+
+
+def _mode_name(value: int) -> str:
+    names = {
+        0: "DISABLED",
+        1: "ENABLING",
+        2: "NORMAL",
+        3: "DAMPING",
+        4: "ZERO_SETTING",
+        5: "ESTOP",
+    }
+    return names.get(value, f"MODE_{value}")

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from robot_controller.shm.operator_command import OperatorCommandC, OperatorCommandCode
+from robot_controller.shm.types.operator_command import (
+    OperatorCommandC,
+    OperatorCommandCode,
+)
 from robot_controller.state_machine import ControllerMode, ControllerStateMachine
 
 

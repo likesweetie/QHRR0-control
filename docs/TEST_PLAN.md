@@ -54,7 +54,7 @@ Covered by `tests/test_control_command_shm.py` and `tests/test_robot_state_shm.p
 | SHM | Expected |
 | --- | --- |
 | `ControlCommandShm` | ctypes struct read/write |
-| `RobotStateShm` | telemetry dict conversion works |
+| `RobotStateShm` | raw `RobotStateC` read/write works |
 | `OperatorCommandShm` | command code can be published/read |
 
 ## Integration Dry Run
