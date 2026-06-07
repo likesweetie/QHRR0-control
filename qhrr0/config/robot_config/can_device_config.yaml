@@ -1,0 +1,28 @@
+# config/app_config/can_device_config.yaml
+
+drivers:
+  spg_mit:
+    p_max_rad: 12.5
+    v_max_rad_s: 45.0
+    kp_max: 500.0
+    kd_max: 5.0
+    tau_max_nm: 33.0
+    feedback_position_max_rad: 12.56
+
+    iq_full_scale_count: 2048.0
+    iq_full_scale_current_a: 33.0
+
+    set_zero_hold_s: 0.020
+
+  e2box:
+    request_id: "0x221"
+    quat_id: "0x2A1"
+    gyro_id: "0x321"
+
+    cmd_get_quat: "0x01"
+    cmd_get_gyro: "0x02"
+    cmd_get_all: "0x03"
+
+    quat_scale: 10000.0
+    gyro_scale: 100.0
+    normalize_quat: true

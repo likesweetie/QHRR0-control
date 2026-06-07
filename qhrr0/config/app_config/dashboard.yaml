@@ -1,0 +1,35 @@
+# config/app_config/dashboard.yaml
+
+dashboard:
+  host: "127.0.0.1"
+  port: 8000
+  state_update_rate: 24.0
+
+robot_controller_state:
+  enabled: true
+  stale_timeout_s: 0.5
+
+can_monitor:
+  bus_window_s: 1.0
+  heartbeat_window_s: 1.0
+  node_timeout_s: 0.25
+  stuff_factor: 1.15
+
+can_daemon:
+  connect_timeout_s: 1.0
+
+spg_monitor:
+  default_mit_poll_hz: 500.0
+
+zero_set_presets:
+  - id: "qhrr_rl_leg_default"
+    label: "RL leg zero preset"
+    targets:
+      - actuator: "RL_hip_roll"
+        offset_deg: 82.5
+
+      - actuator: "RL_hip_pitch"
+        offset_deg: -100.0
+
+      - actuator: "RL_knee_pitch"
+        offset_deg: 20.0

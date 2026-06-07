@@ -1,0 +1,70 @@
+# config/app_config/robot_controller.yaml
+
+runtime:
+  mode: "simulation" # "simulation" or "hardware"
+
+hardware:
+  allow_real_can: false
+
+  can:
+  interface: "vcan0"
+  bitrate: 1000000
+  daemon_socket: "/tmp/qhrr_can_daemon.sock"
+
+  command_timeout_s: 0.05
+  bringup_delay_s: 0.1
+
+  daemon:
+    rx_timeout_s: 0.001
+    tx_timeout_s: 0.001
+    join_timeout_s: 1.0
+    max_tx_queue_size: 4096
+    send_block: false
+    send_timeout_s: null
+    connect_timeout_s: 5.0
+
+  imu:
+    enabled: true
+    request_all_on_start: true
+    startup_request_count: 3
+    startup_request_delay_s: 0.01
+    request_all_each_tick: true
+
+safety:
+  velocity_damping_kd: 0.5
+  command_loss_action: "damping"
+  feedback_stale_action: "fault"
+  damping_timeout_s: 1.0
+
+state_machine:
+  enable_duration_s: 0.5
+
+robot_controller:
+  name: "qhrr_robot_controller"
+  control_hz: 500.0
+  shutdown_timeout_s: 2.0
+
+shm:
+  mit_command:
+    name: "qhrr_mit_command"
+
+  aux_command:
+    name: "qhrr_aux_command"
+    size_bytes: 4096
+    publish_hz: 100.0
+
+  operator_command:
+    name: "qhrr_operator_command"
+    size_bytes: 4096
+
+  control_state:
+    name: "qhrr_control_state"
+    size_bytes: 16384
+    publish_hz: 500.0
+
+  dashboard_state:
+    name: "qhrr_dashboard_state"
+    size_bytes: 65536
+    publish_hz: 10.0
+
+
