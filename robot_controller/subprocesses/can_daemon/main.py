@@ -8,7 +8,7 @@ import socket
 import threading
 from pathlib import Path
 
-from robot_controller.core.config import load_robot_controller_config
+from robot_controller.config import load_robot_controller_config
 from hal.can_bus import CANFrame, CANDaemon, SocketCANBus
 
 

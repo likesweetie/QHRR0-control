@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from ..core.config import ProcessConfig
+from .config import ProcessConfig
 
 
 logger = logging.getLogger(__name__)

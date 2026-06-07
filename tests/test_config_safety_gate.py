@@ -4,8 +4,12 @@ import copy
 import unittest
 from pathlib import Path
 
-from robot_controller.config import HardwareSafetyOptions, validate_runtime_safety
-from robot_controller.core.config import ConfigError, load_robot_controller_config
+from robot_controller.config import (
+    ConfigError,
+    HardwareSafetyOptions,
+    load_robot_controller_config,
+    validate_runtime_safety,
+)
 
 
 CONFIG = Path("config/app_config/robot_controller.yaml")

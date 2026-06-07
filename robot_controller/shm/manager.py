@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from multiprocessing import shared_memory
 
-from robot_controller.core.config import ShmConfig
+from robot_controller.shm.config import ShmConfig
 from robot_controller.shm.types.aux_command import AuxCommandShm
 from robot_controller.shm.types.control_command import ControlCommandShm
 from robot_controller.shm.types.operator_command import OperatorCommandShm

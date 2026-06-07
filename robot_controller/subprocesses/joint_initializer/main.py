@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from robot_controller.core.config import load_robot_controller_config
+from robot_controller.config import load_robot_controller_config
 from robot_controller.subprocesses.task_controller.policy_runner import (
     action_offset,
     load_policies,

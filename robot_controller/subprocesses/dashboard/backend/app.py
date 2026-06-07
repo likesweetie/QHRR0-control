@@ -18,12 +18,9 @@ from .operator_commands import OperatorCommandWriter
 from .robot_state_shm import DashboardRobotStateReader
 from .socketcan_io import CAN_FRAME_SIZE, open_can_socket, parse_can_frame
 from .state import MonitorState
-from robot_controller.core.config import load_robot_controller_config
-from robot_controller.core.platform_config import (
-    load_platform_config,
-    load_yaml_mapping,
-    resolve_config_path,
-)
+from robot_controller.config import load_robot_controller_config
+from robot_controller.config.loader import load_yaml_mapping, resolve_config_path
+from robot_controller.platform.config import load_platform_config
 from robot_controller.supervisor import ProcessSupervisor
 from hal.can_bus.process_client import CANProcessClient
 

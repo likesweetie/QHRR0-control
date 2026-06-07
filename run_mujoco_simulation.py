@@ -9,11 +9,8 @@ import sys
 import time
 from pathlib import Path
 
-from robot_controller.core.platform_config import (
-    load_platform_config,
-    load_yaml_mapping,
-    resolve_config_path,
-)
+from robot_controller.config.loader import load_yaml_mapping, resolve_config_path
+from robot_controller.platform.config import load_platform_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent

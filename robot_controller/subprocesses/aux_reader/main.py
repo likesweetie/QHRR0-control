@@ -8,7 +8,7 @@ import struct
 import time
 from pathlib import Path
 
-from robot_controller.core.config import load_robot_controller_config
+from robot_controller.config import load_robot_controller_config
 from robot_controller.shm.types.aux_command import AuxCommandC, AuxCommandShm
 from robot_controller.subprocesses.aux_buttons import buttons_to_mask
 

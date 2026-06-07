@@ -61,4 +61,10 @@ Primary config files:
 
 ## Validation
 
-Validation lives in `robot_controller/core/config.py` and `robot_controller/config/validate_hardware_safety.py`. Missing required keys are fatal; config classes do not silently inject hardware-critical defaults.
+Validation is split by ownership. YAML loading and app assembly live in
+`robot_controller/config/`, SHM validation lives in `robot_controller/shm/config.py`,
+process validation lives in `robot_controller/supervisor/config.py`, platform
+validation lives in `robot_controller/platform/config.py`, and runtime CAN
+validation lives in `robot_controller/config/can.py`. Cross-component and runtime safety checks remain
+in `robot_controller/config/validation.py`. Missing required keys are fatal; config
+classes do not silently inject hardware-critical defaults.

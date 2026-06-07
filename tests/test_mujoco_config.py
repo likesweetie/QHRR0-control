@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from robot_controller.core.platform_config import load_yaml_mapping
+from robot_controller.config.loader import load_yaml_mapping
 
 
 class MujocoConfigTest(unittest.TestCase):
