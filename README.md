@@ -46,11 +46,9 @@ Hardware mode startup validation:
 | --- | --- |
 | `--hardware` | hardware mode 실행 의도 확인 |
 | `--i-understand-this-can-enable-motors` | 실제 motor enable 가능성을 명시적으로 확인 |
-| `--estop-ok` | `hardware.require_estop: true`일 때 E-stop 확인 |
+| `--estop-ok` | hardware mode에서 E-stop 확인 |
 | `hardware.allow_real_can` | hardware mode에서 `true`여야 함 |
-| `hardware.require_manual_arm` | hardware mode에서 `true`여야 함 |
-| `hardware.allow_enable_on_start` | hardware mode에서 `false`여야 함 |
-| `can.motors.enter_on_start` | hardware mode에서 금지 |
+| `can.interface` | `robot_platform.can.allowed_interfaces`에 있어야 하며 hardware mode에서는 real `can*`이어야 함 |
 
 Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor enable command를 보내지 않습니다. Arm/enable은 dashboard 또는 다른 operator process가 `OperatorCommandShm`에 `ENABLE` command를 쓴 뒤 `RobotController` 상태 머신이 처리합니다. Arm은 motor enable 후 `DAMPING`으로만 들어가며, policy command 송신은 별도 `RUN` command가 있어야 시작됩니다.
 
@@ -87,7 +85,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 
 ## Safety Notes
 
-- `RobotController.tick()`는 operator command를 읽고 상태 머신을 업데이트한 뒤, 현재 `ControllerMode`별로 정확히 하나의 actuator output path만 실행합니다.
+- `RobotController.loop()`는 operator command를 읽고 상태 머신을 업데이트한 뒤, 현재 `ControllerMode`별로 정확히 하나의 actuator output path만 실행합니다.
 - `ENABLING` 상태에서는 enable command만 송신하며, policy/damping/zero/disable command를 섞지 않습니다.
 - Arm 이후에는 `DAMPING` 상태로 머물며, dashboard `Run` 버튼이 `RUN` command를 보낼 때만 `NORMAL`로 전환됩니다.
 - `NORMAL` 상태에서만 `ControlCommandShm.read_relaxed()`를 호출하고 policy MIT command를 송신합니다.
@@ -98,7 +96,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 - `RobotController`는 `RobotStateC`를 직접 구성해 control/dashboard `RobotStateShm`에 씁니다.
 - `runtime.mode: simulation`에서 `can0` 같은 real CAN interface는 reject됩니다.
 - `runtime.mode: hardware`에서 `vcan0`는 reject됩니다.
-- `can.motors.enter_on_start: true`는 simulation/hardware startup gate에서 금지됩니다.
+- startup enable/zero-set은 YAML 선택지가 아니라 controller 코드에서 제공하지 않는 불변 동작입니다.
 - `motor_id` 대신 CAN ID를 기준으로 actuator를 식별합니다.
 - HAL은 `qhrr0_hw`를 import하지 않습니다. QHRR0 제품 종속 구현은 최상단 `qhrr0_hw/`에 둡니다.
 - silent fallback은 금지합니다. fallback policy는 `FALLBACK_POLICY.md`를 따릅니다.
@@ -107,7 +105,7 @@ Hardware mode는 `ControllerMode.DISABLED`에서 시작하며, startup 중 motor
 
 ```bash
 python3 -m robot_controller.main --config config/app_config/robot_controller.yaml
-python3 -m robot_controller.subprocesses.can_daemon.main --config config/app_config/robot_controller.yaml --replace-existing-socket
+python3 -m robot_controller.subprocesses.can_daemon.main --config-key robot_controller --replace-existing-socket
 python3 -m robot_controller.subprocesses.task_controller.main --help
 python3 run_mujoco_simulation.py --help
 candump -td vcan0

@@ -75,10 +75,6 @@ function hexCanId(value) {
   return String(value);
 }
 
-function normalizePayload(value) {
-  return String(value || "").replaceAll(" ", "").toUpperCase();
-}
-
 function renderTopbar(state) {
   if ($("ifaceBadge")) $("ifaceBadge").textContent = state.can.iface;
   if ($("socketBadge")) {
@@ -290,12 +286,8 @@ function renderNodes(nodes) {
 }
 
 function renderMotors(motors, safety, controllerState) {
-  const motorGated = !safety.tx_enabled || !safety.allow_actuator_commands;
-  const enableBlocked = enableBlockedByControllerState(controllerState)
-    || operatorEstopDampingActive(latestState || {});
   const seen = new Set();
   const tbody = $("motorRows");
-  syncAllActuatorToggle(motors, motorGated, enableBlocked, controllerState);
 
   motors.forEach((motor) => {
     const key = String(motor.can_id);
@@ -317,9 +309,7 @@ function renderMotors(motors, safety, controllerState) {
         <td><code data-field="raw"></code></td>
         <td>
           <div class="row-actions">
-            <button class="button secondary compact" data-motor-action="toggle-enable" data-can-id="${key}">Enable</button>
             <button class="button secondary compact" data-motor-action="zero" data-can-id="${key}">Zero set</button>
-            <button class="button secondary compact" data-motor-action="mit-poll" data-can-id="${key}">MIT Poll</button>
           </div>
         </td>
       `;
@@ -339,33 +329,14 @@ function renderMotors(motors, safety, controllerState) {
     row.querySelector('[data-field="raw"]').textContent = motor.raw || "";
 
     row.querySelectorAll("[data-motor-action]").forEach((button) => {
-      if (button.dataset.motorAction === "toggle-enable") {
-        const enabled = motor.enabled_hint === true;
-        button.textContent = enabled ? "Disable" : "Enable";
-        button.dataset.nextAction = enabled ? "exit" : "enter";
-        button.classList.toggle("danger", enabled);
-        button.classList.toggle("secondary", !enabled);
-        button.disabled = !enabled && enableBlocked;
-      }
-      if (button.dataset.motorAction === "mit-poll") {
-        button.textContent = motor.mit_polling ? "Stop Poll" : "MIT Poll";
-        button.classList.toggle("danger", motor.mit_polling);
-        button.classList.toggle("secondary", !motor.mit_polling);
-      }
       if (button.dataset.motorAction === "zero") {
         button.disabled = controllerState !== "NORMAL";
       }
-      const blockedEnable = button.dataset.motorAction === "toggle-enable"
-        && button.dataset.nextAction === "enter"
-        && enableBlocked;
       const isZeroAction = button.dataset.motorAction === "zero";
       const blockedZero = isZeroAction
         && controllerState !== "NORMAL";
-      button.classList.toggle("gated", (!isZeroAction && motorGated) || blockedEnable || blockedZero);
-      button.title = blockedEnable
-        ? `Enable blocked while controller is ${controllerState}`
-      : blockedZero ? "Zero set is available only while controller is NORMAL"
-        : (!isZeroAction && motorGated) ? "Requires TX unlock and allow_actuator_commands=true" : "";
+      button.classList.toggle("gated", blockedZero);
+      button.title = blockedZero ? "Zero set is available only while controller is NORMAL" : "";
     });
   });
 
@@ -374,24 +345,6 @@ function renderMotors(motors, safety, controllerState) {
       row.remove();
     }
   });
-}
-
-function syncAllActuatorToggle(motors, gated, enableBlocked, controllerState) {
-  const button = $("allActuatorToggle");
-  if (!button) return;
-  const configured = Array.isArray(motors) ? motors : [];
-  const anyEnabled = configured.some((motor) => motor.enabled_hint === true);
-  const allEnabled = configured.length > 0 && configured.every((motor) => motor.enabled_hint === true);
-  const shouldDisable = anyEnabled || allEnabled;
-  button.textContent = shouldDisable ? "Disable All" : "Enable All";
-  button.dataset.nextAction = shouldDisable ? "exit" : "enter";
-  button.className = shouldDisable ? "button danger" : "button secondary";
-  const blockedEnable = !shouldDisable && enableBlocked;
-  button.classList.toggle("gated", gated || blockedEnable || configured.length === 0);
-  button.disabled = configured.length === 0 || blockedEnable;
-  button.title = blockedEnable
-    ? `Enable all blocked while controller is ${controllerState}`
-    : gated ? "Requires TX unlock and allow_actuator_commands=true" : "";
 }
 
 function renderEnabledMotorCards(motors) {
@@ -655,12 +608,7 @@ function renderShmActuator(actuator) {
   `;
 }
 
-function syncControls(state) {
-  if ($("txToggle")) {
-    $("txToggle").textContent = state.safety.tx_enabled ? "Lock TX" : "Unlock TX";
-    $("txToggle").className = state.safety.tx_enabled ? "button secondary" : "button danger";
-  }
-}
+function syncControls(state) {}
 
 function offsetDegToCount(value) {
   const scaled = Number(value) * 100;
@@ -762,43 +710,8 @@ async function postJson(url, body = {}) {
 async function loadDashboardConfig() {
   const response = await fetch("/api/config");
   dashboardConfig = await response.json();
-  populateTransmitIds(dashboardConfig);
   populateZeroSetActuators(dashboardConfig);
   populateZeroSetPresets(dashboardConfig);
-}
-
-function populateTransmitIds(config) {
-  const select = $("rawCanId");
-  if (!select) return;
-  const entries = (config.dashboard && Array.isArray(config.dashboard.transmit_ids))
-    ? config.dashboard.transmit_ids
-    : [];
-
-  select.innerHTML = "";
-
-  if (!entries.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No transmit presets";
-    option.disabled = true;
-    select.appendChild(option);
-    if ($("rawPayload")) $("rawPayload").value = "";
-    return;
-  }
-
-  entries.forEach((entry, index) => {
-    const canId = hexCanId(entry.can_id);
-    const label = entry.label || canId;
-    const option = document.createElement("option");
-    option.value = canId;
-    option.textContent = `${label} (${canId})`;
-    option.dataset.payload = normalizePayload(entry.payload);
-    select.appendChild(option);
-
-    if (index === 0 && option.dataset.payload) {
-      $("rawPayload").value = option.dataset.payload;
-    }
-  });
 }
 
 function populateZeroSetActuators(config) {
@@ -858,52 +771,9 @@ async function sendMotorAction(button) {
   try {
     const canId = button.dataset.canId;
     const action = button.dataset.motorAction;
-    const apiAction = action === "toggle-enable" ? button.dataset.nextAction : action;
-    if (action === "mit-poll") {
-      const motors = latestState && Array.isArray(latestState.motors) ? latestState.motors : [];
-      const motor = motors.find((item) => String(item.can_id) === String(canId));
-      if (motor && motor.mit_polling) {
-        await postJson(`/api/actuator/${canId}/mit-poll/stop`);
-        showMessage(`${canId} MIT polling stopped`);
-      } else {
-        const confirmed = window.confirm(`Start MIT polling for ${canId}?`);
-        if (!confirmed) return;
-        await postJson(`/api/actuator/${canId}/mit-poll/start`, { confirmed });
-        showMessage(`${canId} MIT polling started`);
-      }
-      return;
-    }
-
-    await postJson(`/api/actuator/${canId}/${apiAction}`, apiAction === "zero" ? { offset_count: 0 } : {});
-    const label = apiAction === "enter" ? "enable" : apiAction === "exit" ? "disable" : "zero set";
-    showMessage(`${canId} ${label} ${apiAction === "zero" ? "requested" : "sent"}`);
-  } catch (error) {
-    showMessage(error.message, true);
-  } finally {
-    button.dataset.busy = "false";
-  }
-}
-
-async function sendAllActuatorToggle() {
-  const button = $("allActuatorToggle");
-  if (!button || button.dataset.busy === "true") return;
-  const motors = latestState && Array.isArray(latestState.motors) ? latestState.motors : [];
-  const action = button.dataset.nextAction || "enter";
-  const targets = motors
-    .filter((motor) => action === "exit" ? motor.enabled_hint === true : motor.enabled_hint !== true)
-    .map((motor) => motor.can_id);
-
-  if (!targets.length) {
-    showMessage(action === "exit" ? "No enabled actuators" : "All actuators are already enabled");
-    return;
-  }
-
-  button.dataset.busy = "true";
-  try {
-    for (const canId of targets) {
-      await postJson(`/api/actuator/${canId}/${action}`);
-    }
-    showMessage(`${action === "exit" ? "Disable" : "Enable"} all sent (${targets.length})`);
+    if (action !== "zero") return;
+    await postJson(`/api/actuator/${canId}/zero`, { offset_count: 0 });
+    showMessage(`${canId} zero set requested`);
   } catch (error) {
     showMessage(error.message, true);
   } finally {
@@ -925,15 +795,6 @@ function connectWs() {
 }
 
 function bindControls() {
-  if ($("rawCanId")) {
-    $("rawCanId").addEventListener("change", () => {
-      const option = $("rawCanId").selectedOptions[0];
-      if (option && option.dataset.payload && $("rawPayload")) {
-        $("rawPayload").value = option.dataset.payload;
-      }
-    });
-  }
-
   if ($("zeroSetOffsetDeg")) {
     $("zeroSetOffsetDeg").addEventListener("input", () => {
       syncZeroSetControls(latestState || {});
@@ -970,22 +831,6 @@ function bindControls() {
       } finally {
         button.dataset.busy = "false";
         syncZeroSetControls(latestState || {});
-      }
-    });
-  }
-
-  if ($("txToggle")) {
-    $("txToggle").addEventListener("click", async () => {
-      try {
-        if (latestState && latestState.safety && latestState.safety.tx_enabled) {
-          await postJson("/api/tx/lock");
-          showMessage("TX locked");
-          return;
-        }
-        await postJson("/api/tx/unlock");
-        showMessage("TX enabled");
-      } catch (error) {
-        showMessage(error.message, true);
       }
     });
   }
@@ -1042,27 +887,6 @@ function bindControls() {
       } catch (error) {
         showMessage(error.message, true);
       }
-    });
-  }
-
-  if ($("rawForm")) {
-    $("rawForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await postJson("/api/can/send", {
-          can_id: $("rawCanId").value,
-          data: $("rawPayload").value,
-        });
-        showMessage("Frame sent");
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    });
-  }
-
-  if ($("allActuatorToggle")) {
-    $("allActuatorToggle").addEventListener("click", () => {
-      sendAllActuatorToggle();
     });
   }
 

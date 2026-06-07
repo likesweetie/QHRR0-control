@@ -8,7 +8,7 @@ import socket
 import threading
 from pathlib import Path
 
-from robot_controller.config import load_robot_controller_config
+from robot_controller.config import load_robot_controller_config, resolve_config_arg
 from hal.can_bus import CANFrame, CANDaemon, SocketCANBus
 
 
@@ -211,7 +211,8 @@ class CANSubprocessDaemon:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="QHRR SocketCAN daemon subprocess")
-    parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument("--config-key", default="robot_controller")
     parser.add_argument("--replace-existing-socket", action="store_true")
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
@@ -223,7 +224,8 @@ def main() -> None:
         level=getattr(logging, str(args.log_level).upper()),
         format="[%(levelname)s] %(name)s: %(message)s",
     )
-    daemon = CANSubprocessDaemon(args.config, args.replace_existing_socket)
+    config_path = resolve_config_arg(args.config, args.config_key, default_key="robot_controller")
+    daemon = CANSubprocessDaemon(config_path, args.replace_existing_socket)
     daemon.run()
 
 

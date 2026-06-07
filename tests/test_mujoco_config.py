@@ -7,26 +7,28 @@ from robot_controller.config.loader import load_yaml_mapping
 
 
 class MujocoConfigTest(unittest.TestCase):
-    def test_periodic_actuator_feedback_config_is_not_supported(self) -> None:
+    def test_removed_mujoco_can_config_is_not_supported(self) -> None:
         config = load_yaml_mapping(Path("config/app_config/mujoco.yaml"))
-        spg_mit = config["mujoco_can"]["spg_mit"]
-        self.assertNotIn("periodic_feedback", spg_mit)
-        self.assertNotIn("periodic_feedback_s", spg_mit)
 
-    def test_mit_command_timeout_config_is_not_supported(self) -> None:
-        config = load_yaml_mapping(Path("config/app_config/mujoco.yaml"))
-        mujoco_can = config["mujoco_can"]
-        self.assertNotIn("command_timeout_s", mujoco_can)
+        self.assertNotIn("mujoco_can", config)
+        self.assertNotIn("socketcan", config)
+        self.assertNotIn("spg_mit", config)
 
-    def test_imu_sensors_are_explicitly_named(self) -> None:
+    def test_imu_sensors_are_explicitly_named_at_root(self) -> None:
         config = load_yaml_mapping(Path("config/app_config/mujoco.yaml"))
-        mujoco_can = config["mujoco_can"]
-        imu_sensors = mujoco_can["imu_sensors"]
-        self.assertNotIn("base_body_name", mujoco_can)
+        imu_sensors = config["imu_sensors"]
+
         self.assertIsInstance(imu_sensors["quat_sensor_name"], str)
         self.assertIsInstance(imu_sensors["gyro_sensor_name"], str)
         self.assertNotEqual(imu_sensors["quat_sensor_name"], "")
         self.assertNotEqual(imu_sensors["gyro_sensor_name"], "")
+
+    def test_spg_zero_hold_lives_in_can_device_config(self) -> None:
+        config = load_yaml_mapping(Path("config/app_config/can_device_config.yaml"))
+        spg_mit = config["drivers"]["spg_mit"]
+
+        self.assertIn("set_zero_hold_s", spg_mit)
+        self.assertGreaterEqual(float(spg_mit["set_zero_hold_s"]), 0.0)
 
 
 if __name__ == "__main__":

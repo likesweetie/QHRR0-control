@@ -18,9 +18,8 @@ from .operator_commands import OperatorCommandWriter
 from .robot_state_shm import DashboardRobotStateReader
 from .socketcan_io import CAN_FRAME_SIZE, open_can_socket, parse_can_frame
 from .state import MonitorState
-from robot_controller.config import load_robot_controller_config
-from robot_controller.config.loader import load_yaml_mapping, resolve_config_path
-from robot_controller.platform.config import load_platform_config
+from robot_controller.config import load_config_paths, load_robot_controller_config
+from robot_controller.config.loader import load_yaml_mapping
 from robot_controller.supervisor import ProcessSupervisor
 from hal.can_bus.process_client import CANProcessClient
 
@@ -110,75 +109,61 @@ def require_no_platform_owned_keys(config: dict[str, Any]) -> None:
         raise ValueError("Dashboard config must not define platform-owned key: actuators")
 
 
-def resolve_transmit_ids(config: dict[str, Any], platform) -> None:
-    dashboard = require_section(config, "dashboard")
-    raw = dashboard.get("transmit_ids")
-    if not isinstance(raw, list):
-        raise ValueError("Dashboard config key 'dashboard.transmit_ids' must be a list")
-    actuators = {actuator.name: actuator.can_id for actuator in platform.actuators}
-    resolved = []
-    for index, item in enumerate(raw):
-        if not isinstance(item, dict):
-            raise ValueError(f"dashboard.transmit_ids[{index}] must be a mapping")
-        if "can_id" in item:
-            raise ValueError(f"dashboard.transmit_ids[{index}].can_id must come from actuator")
-        output = dict(item)
-        if "platform_ref" in item:
-            raise ValueError(
-                f"dashboard.transmit_ids[{index}].platform_ref is not supported; "
-                "dashboard transmit presets must reference an actuator"
-            )
-        if "actuator" not in item:
-            raise ValueError(f"dashboard.transmit_ids[{index}] requires actuator")
-        name = str(item["actuator"])
-        if name not in actuators:
-            raise ValueError(f"dashboard.transmit_ids[{index}] references unknown actuator: {name}")
-        output["can_id"] = actuators[name]
-        resolved.append(output)
-    dashboard["transmit_ids"] = resolved
+def reject_removed_dashboard_keys(raw: dict[str, Any]) -> None:
+    for key in ("platform_config", "robot_controller_config"):
+        if key in raw:
+            raise ValueError(f"Dashboard config key '{key}' is no longer supported")
+    dashboard = require_section(raw, "dashboard")
+    if "state_hz" in dashboard:
+        raise ValueError("Dashboard config key 'dashboard.state_hz' was renamed to dashboard.state_update_rate")
+    if "transmit_ids" in dashboard:
+        raise ValueError("Dashboard config key 'dashboard.transmit_ids' was removed")
+    safety = raw.get("safety")
+    if isinstance(safety, dict) and "allow_direct_can_transmit" in safety:
+        raise ValueError("Dashboard config key 'safety.allow_direct_can_transmit' was removed")
 
 
 def resolve_zero_set_presets(config: dict[str, Any], platform) -> None:
     dashboard = require_section(config, "dashboard")
-    raw = dashboard.get("zero_set_presets", [])
+    raw = config.get("zero_set_presets", dashboard.get("zero_set_presets", []))
     if raw is None:
         raw = []
     if not isinstance(raw, list):
-        raise ValueError("Dashboard config key 'dashboard.zero_set_presets' must be a list")
+        raise ValueError("Dashboard config key 'zero_set_presets' must be a list")
 
-    actuators = {actuator.name: actuator.can_id for actuator in platform.enabled_actuators}
+    actuators = {actuator.name: actuator.can_id for actuator in platform.actuators}
     resolved = []
     for index, item in enumerate(raw):
         if not isinstance(item, dict):
-            raise ValueError(f"dashboard.zero_set_presets[{index}] must be a mapping")
+            raise ValueError(f"zero_set_presets[{index}] must be a mapping")
         targets_raw = item.get("targets")
         if not isinstance(targets_raw, list) or not targets_raw:
-            raise ValueError(f"dashboard.zero_set_presets[{index}].targets must be a non-empty list")
+            raise ValueError(f"zero_set_presets[{index}].targets must be a non-empty list")
 
         targets = []
         for target_index, target in enumerate(targets_raw):
             if not isinstance(target, dict):
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] must be a mapping"
+                    f"zero_set_presets[{index}].targets[{target_index}] must be a mapping"
                 )
             if "can_id" in target:
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}].can_id "
+                    f"zero_set_presets[{index}].targets[{target_index}].can_id "
                     "must come from actuator"
                 )
             if "actuator" not in target:
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] requires actuator"
+                    f"zero_set_presets[{index}].targets[{target_index}] requires actuator"
                 )
             name = str(target["actuator"])
             if name not in actuators:
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    f"zero_set_presets[{index}].targets[{target_index}] "
                     f"references unknown actuator: {name}"
                 )
             if "offset_count" in target and "offset_deg" in target:
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    f"zero_set_presets[{index}].targets[{target_index}] "
                     "must use either offset_count or offset_deg, not both"
                 )
             if "offset_deg" in target:
@@ -189,12 +174,12 @@ def resolve_zero_set_presets(config: dict[str, Any], platform) -> None:
                 offset_deg = offset_count * 0.01
             else:
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    f"zero_set_presets[{index}].targets[{target_index}] "
                     "requires offset_deg or offset_count"
                 )
             if not (-32768 <= offset_count <= 32767):
                 raise ValueError(
-                    f"dashboard.zero_set_presets[{index}].targets[{target_index}] "
+                    f"zero_set_presets[{index}].targets[{target_index}] "
                     f"offset_count out of int16 range: {offset_count}"
                 )
             targets.append(
@@ -213,70 +198,67 @@ def resolve_zero_set_presets(config: dict[str, Any], platform) -> None:
                 "targets": targets,
             }
         )
+    config["zero_set_presets"] = resolved
     dashboard["zero_set_presets"] = resolved
 
 
 def load_config() -> tuple[dict[str, Any], Any]:
     raw = load_yaml_mapping(CONFIG_PATH)
     require_no_platform_owned_keys(raw)
-    if "platform_config" not in raw:
-        raise ValueError("Dashboard config key 'platform_config' is required")
-    if "robot_controller_config" not in raw:
-        raise ValueError("Dashboard config key 'robot_controller_config' is required")
-    platform_path = resolve_config_path(
-        CONFIG_PATH,
-        str(raw["platform_config"]),
-        "platform_config",
-    )
-    platform = load_platform_config(platform_path)
-    controller_config_path = resolve_config_path(
-        CONFIG_PATH,
-        str(raw["robot_controller_config"]),
-        "robot_controller_config",
-    )
-    controller_config = load_robot_controller_config(controller_config_path)
-    if controller_config.platform.path != platform.path:
-        raise ValueError(
-            "Dashboard platform_config must match robot_controller_config platform_config"
-        )
+    reject_removed_dashboard_keys(raw)
+    config_paths = load_config_paths()
+    controller_config = load_robot_controller_config(config_paths=config_paths)
+    platform = controller_config.robot_platform
+    can_device = controller_config.can_device
+    spg = can_device.drivers["spg_mit"]
 
     config = dict(raw)
-    resolve_transmit_ids(config, platform)
     resolve_zero_set_presets(config, platform)
-    config.pop("platform_config", None)
-    config.pop("robot_controller_config", None)
-    config.setdefault("can", {})
-    config["can"]["iface"] = platform.can.interface
-    config["can"]["bitrate"] = platform.can.bitrate
+    can_monitor = require_section(config, "can_monitor")
+    spg_monitor = require_section(config, "spg_monitor")
+    config["can"] = {
+        "iface": controller_config.can.interface,
+        "bitrate": controller_config.can.bitrate,
+        "bus_window_s": can_monitor["bus_window_s"],
+        "heartbeat_window_s": can_monitor["heartbeat_window_s"],
+        "node_timeout_s": can_monitor["node_timeout_s"],
+        "stuff_factor": can_monitor["stuff_factor"],
+    }
     config.setdefault("can_daemon", {})
-    config["can_daemon"]["ipc_socket_path"] = platform.can.daemon_socket
+    config["can_daemon"]["ipc_socket_path"] = controller_config.can.daemon.ipc_socket_path
     config.setdefault("robot_controller_state", {})
-    config["robot_controller_state"]["control_shm_name"] = platform.shm.control_state
-    config["robot_controller_state"]["dashboard_shm_name"] = platform.shm.dashboard_state
+    config["robot_controller_state"]["control_shm_name"] = controller_config.shm.control_state.name
+    config["robot_controller_state"]["dashboard_shm_name"] = controller_config.shm.dashboard_state.name
     config["robot_controller_state"]["operator_shm_name"] = controller_config.shm.operator_command.name
     config["robot_controller_state"]["operator_shm_size_bytes"] = controller_config.shm.operator_command.size_bytes
-    config.setdefault("imu", {})
-    config["imu"]["request_id"] = platform.imu.request_id
-    config["imu"]["quat_id"] = platform.imu.quat_id
-    config["imu"]["gyro_id"] = platform.imu.gyro_id
-    config["imu"]["quat_scale"] = platform.imu.quat_scale
-    config["imu"]["gyro_scale"] = platform.imu.gyro_scale
-    config["imu"]["normalize_quat"] = platform.imu.normalize_quat
-    config.setdefault("spg", {})
-    config["spg"]["feedback_position_max_rad"] = platform.spg_mit.feedback_position_max_rad
-    config["spg"]["iq_full_scale_count"] = platform.spg_mit.iq_full_scale_count
-    config["spg"]["iq_full_scale_current_a"] = platform.spg_mit.iq_full_scale_current_a
-    config["spg"]["p_max_rad"] = platform.spg_mit.p_max_rad
-    config["spg"]["v_max_rad_s"] = platform.spg_mit.v_max_rad_s
-    config["spg"]["kp_max"] = platform.spg_mit.kp_max
-    config["spg"]["kd_max"] = platform.spg_mit.kd_max
-    config["spg"]["tau_max_nm"] = platform.spg_mit.tau_max_nm
+    config["imu"] = {
+        "request_id": can_device.imu.request_id,
+        "quat_id": can_device.imu.quat_id,
+        "gyro_id": can_device.imu.gyro_id,
+        "quat_scale": can_device.imu.quat_scale,
+        "gyro_scale": can_device.imu.gyro_scale,
+        "normalize_quat": can_device.imu.normalize_quat,
+    }
+    config["spg"] = {
+        "default_mit_poll_hz": spg_monitor["default_mit_poll_hz"],
+        "feedback_position_max_rad": spg.feedback_position_max_rad,
+        "iq_full_scale_count": spg.iq_full_scale_count,
+        "iq_full_scale_current_a": spg.iq_full_scale_current_a,
+        "p_max_rad": spg.p_max_rad,
+        "v_max_rad_s": spg.v_max_rad_s,
+        "kp_max": spg.kp_max,
+        "kd_max": spg.kd_max,
+        "tau_max_nm": spg.tau_max_nm,
+    }
+    config.setdefault("safety", {})
+    config["safety"]["tx_enabled_by_default"] = False
+    config["safety"]["allow_actuator_commands"] = False
     config["actuators"] = [
         {
             "name": actuator.name,
             "can_id": actuator.can_id,
         }
-        for actuator in platform.enabled_actuators
+        for actuator in platform.actuators
     ]
     return config, controller_config
 
@@ -639,23 +621,17 @@ async def api_process_stop(name: str) -> dict:
 
 @app.post("/api/tx/lock")
 async def tx_lock() -> dict:
-    commands.lock_tx()
-    return {"ok": True, "tx_enabled": state.tx_enabled}
+    raise HTTPException(status_code=410, detail="Direct CAN TX control was removed")
 
 
 @app.post("/api/tx/unlock")
 async def tx_unlock() -> dict:
-    commands.unlock_tx()
-    return {"ok": True, "tx_enabled": state.tx_enabled}
+    raise HTTPException(status_code=410, detail="Direct CAN TX control was removed")
 
 
 @app.post("/api/can/send")
 async def can_send(req: RawSendRequest) -> dict:
-    try:
-        tx = commands.send_raw(parse_can_id(req.can_id), parse_hex_payload(req.data))
-    except (ValueError, CommandError, OSError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "tx": tx}
+    raise HTTPException(status_code=410, detail="Raw CAN send was removed")
 
 
 @app.post("/api/operator/fault-clear")
@@ -723,20 +699,12 @@ async def operator_estop() -> dict:
 
 @app.post("/api/actuator/{can_id}/enter")
 async def motor_enter(can_id: str) -> dict:
-    try:
-        tx = commands.motor_enter(parse_can_id(can_id))
-    except (CommandError, OSError) as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    return {"ok": True, "tx": tx}
+    raise HTTPException(status_code=410, detail="Direct actuator enable was removed")
 
 
 @app.post("/api/actuator/{can_id}/exit")
 async def motor_exit(can_id: str) -> dict:
-    try:
-        tx = commands.motor_exit(parse_can_id(can_id))
-    except (CommandError, OSError) as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    return {"ok": True, "tx": tx}
+    raise HTTPException(status_code=410, detail="Direct actuator disable was removed")
 
 
 @app.post("/api/actuator/{can_id}/zero")
@@ -755,26 +723,23 @@ async def motor_zero(can_id: str, req: MotorZeroRequest) -> dict:
 
 @app.post("/api/actuator/{can_id}/mit-poll/start")
 async def motor_mit_poll_start(can_id: str, req: ConfirmRequest) -> dict:
-    if not req.confirmed:
-        raise HTTPException(status_code=400, detail="MIT polling start was not confirmed")
-    parsed_can_id = parse_can_id(can_id)
-    if parsed_can_id not in state.motors:
-        raise HTTPException(status_code=404, detail=f"Unknown CAN ID 0x{parsed_can_id:03X}")
-    state.mit_poll_can_ids.add(parsed_can_id)
-    return {"ok": True, "can_id": f"0x{parsed_can_id:03X}", "mit_polling": True}
+    raise HTTPException(status_code=410, detail="Direct actuator MIT polling was removed")
 
 
 @app.post("/api/actuator/{can_id}/mit-poll/stop")
 async def motor_mit_poll_stop(can_id: str) -> dict:
-    parsed_can_id = parse_can_id(can_id)
-    state.mit_poll_can_ids.discard(parsed_can_id)
-    return {"ok": True, "can_id": f"0x{parsed_can_id:03X}", "mit_polling": False}
+    raise HTTPException(status_code=410, detail="Direct actuator MIT polling was removed")
 
 
 @app.websocket("/ws/state")
 async def ws_state(websocket: WebSocket) -> None:
     await websocket.accept()
-    state_hz = require_hz(nested(config, "dashboard", "state_hz"), "dashboard.state_hz", lo=1.0, hi=60.0)
+    state_hz = require_hz(
+        nested(config, "dashboard", "state_update_rate"),
+        "dashboard.state_update_rate",
+        lo=1.0,
+        hi=60.0,
+    )
     delay = 1.0 / state_hz
     try:
         while True:

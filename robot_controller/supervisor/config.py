@@ -24,7 +24,11 @@ class ProcessConfig:
     new_terminal: bool
     terminal_command: list[str]
     working_dir: str
-    env: dict[str, str]
+    env_vars: dict[str, str]
+
+    @property
+    def env(self) -> dict[str, str]:
+        return self.env_vars
 
 
 def parse_process_config(item: Any, index: int) -> ProcessConfig:
@@ -33,7 +37,9 @@ def parse_process_config(item: Any, index: int) -> ProcessConfig:
     command = require_list(item, "command", f"processes[{index}]")
     if not command:
         raise ConfigError(f"Config key must not be empty: processes[{index}].command")
-    env_raw = require_mapping(item, "env", f"processes[{index}]")
+    if "env" in item:
+        raise ConfigError("processes[*].env was renamed to processes[*].env_vars")
+    env_vars_raw = require_mapping(item, "env_vars", f"processes[{index}]")
     config = ProcessConfig(
         name=str(require_key(item, "name", f"processes[{index}]")),
         command=[str(part) for part in command],
@@ -45,7 +51,7 @@ def parse_process_config(item: Any, index: int) -> ProcessConfig:
             for part in require_list(item, "terminal_command", f"processes[{index}]")
         ],
         working_dir=str(require_key(item, "working_dir", f"processes[{index}]")),
-        env={str(key): str(value) for key, value in env_raw.items()},
+        env_vars={str(key): str(value) for key, value in env_vars_raw.items()},
     )
     validate_process_config(config)
     return config

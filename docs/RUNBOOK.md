@@ -27,7 +27,7 @@ python3 run_mujoco_simulation.py
 
 ## Hardware Runtime
 
-Only run after checking `config/app_config/robot_controller.yaml` and `config/app_config/platform.yaml`.
+Only run after checking `config/app_config/robot_controller.yaml`, `config/app_config/robot_platform.yaml`, and `config/app_config/can_device_config.yaml`.
 
 ```bash
 python3 -m robot_controller.main \
@@ -43,14 +43,14 @@ python3 -m robot_controller.main \
 python3 -m robot_controller.subprocesses.can_daemon.main --help
 python3 -m robot_controller.subprocesses.task_controller.main --help
 python3 -m robot_controller.subprocesses.aux_reader.main --help
-python3 -m robot_controller.subprocesses.dashboard.main
+python3 -m robot_controller.subprocesses.dashboard.main --config-key dashboard
 ```
 
 `ProcessSupervisor` usually starts these from `config/app_config/processes.yaml`.
 
 ## Shutdown
 
-Use `Ctrl-C` in the controller terminal. `RobotController.shutdown()` requests disable-all once if CAN is connected, stops child processes, closes SHM handles, and unlinks SHM when configured.
+Use `Ctrl-C` in the controller terminal. `RobotController.shutdown()` requests disable-all once if CAN is connected, stops child processes, closes SHM handles, and unlinks configured SHM segments.
 
 ## Logs
 
@@ -78,4 +78,4 @@ pkill -f robot_controller.subprocesses
 find /dev/shm -maxdepth 1 -name 'qhrr_*' -print
 ```
 
-If stale SHM exists, `shm.cleanup_stale_on_start: true` lets the controller cleanup configured segments at startup.
+If stale SHM exists, the controller cleanup path removes configured stale segments at startup.

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import onnxruntime as ort
 import yaml
 
 
@@ -61,7 +60,7 @@ def load_bundles(policy_config_dir: Path) -> list[RunnerBundle]:
                 RunnerBundle(
                     name=str(name),
                     directory=session_dir,
-                    runner_config=load_yaml(session_dir / "runner_config.yaml"),
+                    runner_config=load_runner_config(session_dir),
                     obs_config=load_yaml(session_dir / "obs_config.yaml")
                     if (session_dir / "obs_config.yaml").exists()
                     else {},
@@ -72,12 +71,20 @@ def load_bundles(policy_config_dir: Path) -> list[RunnerBundle]:
         RunnerBundle(
             name=policy_config_dir.name,
             directory=policy_config_dir,
-            runner_config=load_yaml(policy_config_dir / "runner_config.yaml"),
+            runner_config=load_runner_config(policy_config_dir),
             obs_config=load_yaml(policy_config_dir / "obs_config.yaml")
             if (policy_config_dir / "obs_config.yaml").exists()
             else {},
         )
     ]
+
+
+def load_runner_config(session_dir: Path) -> dict[str, Any]:
+    for filename in ("runner_config.yaml", "policy_runner.yaml"):
+        path = session_dir / filename
+        if path.exists():
+            return load_yaml(path)
+    raise FileNotFoundError(f"runner_config.yaml or policy_runner.yaml not found in {session_dir}")
 
 
 def load_policies(project_root_path: Path, policy_config_dir: Path) -> list[OnnxPolicy]:
@@ -161,6 +168,8 @@ class OnnxPolicy:
         self.obs_components = self._obs_components()
         self.obs_scales = self._obs_scales()
         policy_dir = _resolve_policy_dir(project_root_path, str(self.config["file_path"]))
+        import onnxruntime as ort
+
         self.session = ort.InferenceSession(str(policy_dir / "policy.onnx"), providers=["CPUExecutionProvider"])
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name

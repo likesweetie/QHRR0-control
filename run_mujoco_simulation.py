@@ -9,8 +9,9 @@ import sys
 import time
 from pathlib import Path
 
-from robot_controller.config.loader import load_yaml_mapping, resolve_config_path
-from robot_controller.platform.config import load_platform_config
+from robot_controller.config import load_config_paths, resolve_config_arg
+from robot_controller.config.loader import load_yaml_mapping
+from robot_controller.platform.config import load_robot_platform_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -107,7 +108,8 @@ def terminate(processes: list[subprocess.Popen], timeout_s: float) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Launch QHRR MuJoCo simulation from the repository root.")
-    parser.add_argument("--config", type=Path, default=Path("config/app_config/mujoco.yaml"))
+    parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument("--config-key", default="mujoco")
     parser.add_argument("--robot")
     parser.add_argument("--build-dir", type=Path, default=Path("build/mujoco"))
     parser.add_argument("--skip-build", action="store_true")
@@ -117,33 +119,30 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    mujoco_config_path = require_path(Path(args.config), "MuJoCo app config")
-    mujoco_raw = load_yaml_mapping(mujoco_config_path)
-    if "platform_config" not in mujoco_raw:
-        raise KeyError(f"platform_config is required in {mujoco_config_path}")
-    platform_config_path = resolve_config_path(
-        mujoco_config_path,
-        str(mujoco_raw["platform_config"]),
-        "platform_config",
+    config_paths = load_config_paths()
+    mujoco_config_path = require_path(
+        resolve_config_arg(args.config, args.config_key, default_key="mujoco", config_paths=config_paths),
+        "MuJoCo app config",
     )
-    platform = load_platform_config(platform_config_path)
+    mujoco_raw = load_yaml_mapping(mujoco_config_path)
+    for key in ("platform_config", "mujoco_can", "socketcan", "spg_mit"):
+        if key in mujoco_raw:
+            raise KeyError(f"{key} is not supported in {mujoco_config_path}")
+    platform = load_robot_platform_config(config_paths.config("robot_platform"))
     robot_name = args.robot or platform.robot.name
-    if robot_name not in platform.robots:
-        raise KeyError(f"Robot '{robot_name}' is not defined in {platform_config_path}")
-    robot = platform.robots[robot_name]
     build_dir = Path(args.build_dir)
     if args.skip_build:
         build_dir = require_path(build_dir, "build directory")
         mujoco_simulate = require_path(build_dir / "mujoco_simulate", "mujoco_simulate binary")
     else:
         mujoco_simulate = build_mujoco_simulate(build_dir)
-    model_path = require_path(Path(robot.model_path), "MuJoCo model")
+    model_path = require_path(Path(platform.assets.mujoco_model_path), "MuJoCo model")
     env = build_env(
         args,
         robot_name=robot_name,
         model_config_path=mujoco_config_path,
-        policy_config_dir=Path(robot.policy_config_dir),
-        pd_config_path=Path(robot.pd_config_path),
+        policy_config_dir=config_paths.policy_path("policy_list").parent,
+        pd_config_path=config_paths.policy_path("pd_config"),
     )
     processes: list[subprocess.Popen] = []
     try:

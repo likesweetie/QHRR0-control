@@ -74,12 +74,12 @@ Actuator callbacks are registered in `RobotController._register_callbacks()`. Mu
 
 ## Simulation vs Hardware
 
-Startup safety validation is in `robot_controller/config/validate_hardware_safety.py`.
+Startup safety validation is in `robot_controller/config/validation.py`.
 
 | Mode | Current behavior |
 | --- | --- |
-| `simulation` | rejects real `canN` interface and forbids `can.motors.enter_on_start` |
-| `hardware` | requires `--hardware`, `--i-understand-this-can-enable-motors`, allowed real CAN interface, `allow_real_can: true`, manual arm, and E-stop confirmation when configured |
+| `simulation` | rejects real `canN` interface |
+| `hardware` | requires `--hardware`, `--i-understand-this-can-enable-motors`, `--estop-ok`, allowed real CAN interface, and `hardware.allow_real_can: true` |
 
 ## Verification
 

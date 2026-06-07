@@ -30,7 +30,7 @@ configuration errors, transport failures, or stale command state.
   identifiers and protocol layouts.
 - Treat missing actuator CAN IDs, unknown command sources, malformed SHM
   headers, and partial MIT target batches as errors.
-- Command fallback must be visible in `RobotController.tick()` or
+- Command fallback must be visible in `RobotController.loop()` or
   `ControlModeFsm`; do not hide actuator output changes behind helper
   layers.
 - `ControlCommandShm` is a relaxed C-struct view. Motor command tearing is

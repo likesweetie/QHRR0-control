@@ -220,7 +220,7 @@ class _ProcessSupervisorBase:
     @staticmethod
     def _process_env(config: ProcessConfig) -> dict[str, str]:
         env = dict(os.environ)
-        env.update(config.env)
+        env.update(config.env_vars)
         return env
 
     def status(self) -> dict[str, object]:

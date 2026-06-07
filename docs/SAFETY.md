@@ -1,6 +1,6 @@
 # Safety Notes
 
-현재 runtime은 `ControlModeFsm`과 `RobotController.tick()`의 상태별 output rule로 actuator output을 제한한다.
+현재 runtime은 `ControlModeFsm`과 `RobotController.loop()`의 상태별 output rule로 actuator output을 제한한다.
 
 ## Controller Modes
 
@@ -34,20 +34,17 @@ stateDiagram-v2
 
 ## Hardware Startup Gate
 
-Implemented in `robot_controller/config/validate_hardware_safety.py`.
+Implemented in `robot_controller/config/validation.py`.
 
 | Condition | Behavior |
 | --- | --- |
 | simulation + real `canN` | startup reject |
-| simulation + `can.motors.enter_on_start: true` | startup reject |
 | hardware without `--hardware` | startup reject |
 | hardware without `--i-understand-this-can-enable-motors` | startup reject |
 | hardware + `vcan*` | startup reject |
-| hardware + interface outside `hardware.allowed_can_interfaces` | startup reject |
+| hardware + interface outside `robot_platform.can.allowed_interfaces` | startup reject |
 | hardware + `hardware.allow_real_can: false` | startup reject |
-| hardware + `hardware.require_manual_arm: false` | startup reject |
-| hardware + `hardware.allow_enable_on_start: true` | startup reject |
-| hardware + required E-stop without `--estop-ok` | startup reject |
+| hardware without `--estop-ok` | startup reject |
 
 ## Current Fallbacks / Safety-Relevant Behavior
 
@@ -55,7 +52,7 @@ Implemented in `robot_controller/config/validate_hardware_safety.py`.
 | --- | --- | --- |
 | operator `ESTOP` | `ESTOP` mode, repeated disable-all | clear requires `RESET_FAULT` |
 | operator `DISABLE` | `DISABLED` mode, repeated disable-all | no policy read |
-| operator `DAMPING` | `DAMPING` mode, repeated damping-like MIT command | no timeout is enforced in current `tick()` |
+| operator `DAMPING` | `DAMPING` mode, repeated damping-like MIT command | no timeout is enforced in current `loop()` |
 | controller shutdown | attempts one disable-all if CAN is connected | logs warning if send fails |
 | unknown CAN ID in `ControlCommandShm` | skipped by `_send_policy_command()` | TODO(owner): decide whether this should fault in hardware mode |
 
@@ -72,6 +69,5 @@ Implemented in `robot_controller/config/validate_hardware_safety.py`.
 - Confirm `runtime.mode: hardware`.
 - Confirm CAN interface and bitrate externally with `ip link`.
 - Confirm `hardware.allow_real_can: true`.
-- Confirm `can.motors.enter_on_start: false`.
 - Confirm dashboard/operator path writes `OperatorCommandShm`, not direct actuator enable commands in fault/estop states.
 - Confirm actuator firmware behavior for the MIT damping-like command.

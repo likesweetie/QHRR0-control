@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .actuators import QHRR0ActuatorSpec, actuator_specs_from_platform
-from .imu import QHRR0ImuSpec, imu_spec_from_platform
+from .actuators import QHRR0ActuatorSpec, actuator_specs_from_robot_platform
+from .imu import QHRR0ImuSpec, imu_spec_from_can_device
 
 
 @dataclass(frozen=True)
@@ -16,8 +16,12 @@ class QHRR0RobotSpec:
         return [spec.can_id for spec in self.actuators]
 
 
-def robot_spec_from_platform(platform) -> QHRR0RobotSpec:
+def robot_spec_from_config(robot_platform, can_device) -> QHRR0RobotSpec:
     return QHRR0RobotSpec(
-        actuators=actuator_specs_from_platform(platform),
-        imu=imu_spec_from_platform(platform),
+        actuators=actuator_specs_from_robot_platform(robot_platform),
+        imu=imu_spec_from_can_device(can_device),
     )
+
+
+def robot_spec_from_platform(platform) -> QHRR0RobotSpec:
+    return robot_spec_from_config(platform, platform)

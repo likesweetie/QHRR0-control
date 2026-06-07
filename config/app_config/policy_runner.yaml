@@ -1,0 +1,11 @@
+# config/app_config/policy_runner.yaml
+
+policy_runner:
+  robot_name: "qhrr"
+  control_hz: 50.0
+  rate_log_interval_s: 1.0
+  policy_list_key: "policy_list"
+  pd_config_key: "pd_config"
+
+pd_control:
+  enabled: true

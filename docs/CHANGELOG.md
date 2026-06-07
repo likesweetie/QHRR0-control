@@ -11,7 +11,7 @@
 
 ### Changed
 
-- `RobotController.tick()` now directly dispatches exactly one actuator output path per controller mode.
+- `RobotController.loop()` now directly dispatches exactly one actuator output path per controller mode.
 - Arm and policy run are split: `ENABLING` now transitions to `DAMPING`, and `RUN` is required for `NORMAL`.
 - `robot_controller/process` moved to `robot_controller/subprocesses`.
 - `robot_controller/processes` moved to `robot_controller/supervisor`.

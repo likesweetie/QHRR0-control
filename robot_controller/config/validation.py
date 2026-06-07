@@ -15,8 +15,10 @@ class HardwareSafetyOptions:
 def validate_app_config(config) -> None:
     if config.runtime.mode not in ("simulation", "hardware"):
         raise ConfigError("runtime.mode must be 'simulation' or 'hardware'")
-    if not config.hardware.allowed_can_interfaces:
-        raise ConfigError("hardware.allowed_can_interfaces must not be empty")
+    if not config.robot_platform.can.allowed_interfaces:
+        raise ConfigError("robot_platform.can.allowed_interfaces must not be empty")
+    if config.can.interface not in set(config.robot_platform.can.allowed_interfaces):
+        raise ConfigError("can.interface must be listed in robot_platform.can.allowed_interfaces")
     if config.safety.velocity_damping_kd < 0.0:
         raise ConfigError("safety.velocity_damping_kd must be >= 0")
     if config.safety.damping_timeout_s <= 0.0:
@@ -50,8 +52,6 @@ def validate_runtime_safety(config, options: HardwareSafetyOptions) -> None:
     if config.runtime.mode == "simulation":
         if is_real_can:
             raise ConfigError("simulation mode rejects real CAN interface")
-        if config.can.motors.enter_on_start:
-            raise ConfigError("simulation mode rejects can.motors.enter_on_start")
         return
 
     if config.runtime.mode != "hardware":
@@ -64,15 +64,9 @@ def validate_runtime_safety(config, options: HardwareSafetyOptions) -> None:
         raise ConfigError("hardware mode rejects virtual CAN interface")
     if not is_real_can:
         raise ConfigError("hardware mode requires a real CAN interface")
-    if interface not in set(config.hardware.allowed_can_interfaces):
-        raise ConfigError("hardware CAN interface must be listed in hardware.allowed_can_interfaces")
+    if interface not in set(config.robot_platform.can.allowed_interfaces):
+        raise ConfigError("hardware CAN interface must be listed in robot_platform.can.allowed_interfaces")
     if not config.hardware.allow_real_can:
         raise ConfigError("hardware mode requires hardware.allow_real_can")
-    if not config.hardware.require_manual_arm:
-        raise ConfigError("hardware mode requires hardware.require_manual_arm")
-    if config.hardware.allow_enable_on_start:
-        raise ConfigError("hardware mode rejects hardware.allow_enable_on_start")
-    if config.can.motors.enter_on_start:
-        raise ConfigError("hardware mode rejects can.motors.enter_on_start")
-    if config.hardware.require_estop and not options.estop_ok:
+    if not options.estop_ok:
         raise ConfigError("hardware mode requires --estop-ok")

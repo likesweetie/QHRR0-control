@@ -5,17 +5,21 @@ from pathlib import Path
 from typing import Any
 
 from robot_controller.config.can import CanConfig, parse_can_config
+from robot_controller.config.can_device import CanDeviceConfig, load_can_device_config
 from robot_controller.config.loader import (
+    ConfigError,
     load_yaml_mapping,
     require_bool,
     require_float,
     require_key,
-    require_list,
     require_mapping,
-    resolve_config_path,
 )
+from robot_controller.config.paths import ConfigPathRegistry, load_config_paths
 from robot_controller.config.validation import validate_app_config
-from robot_controller.platform.config import PlatformConfig, load_platform_config
+from robot_controller.platform.config import (
+    RobotPlatformConfig,
+    load_robot_platform_config,
+)
 from robot_controller.shm.config import ShmConfig, parse_shm_config
 from robot_controller.supervisor.config import ProcessConfig, load_processes_config
 
@@ -40,10 +44,6 @@ class RuntimeModeConfig:
 @dataclass
 class HardwareSafetyConfig:
     allow_real_can: bool
-    require_manual_arm: bool
-    require_estop: bool
-    allow_enable_on_start: bool
-    allowed_can_interfaces: list[str]
 
 
 @dataclass
@@ -56,7 +56,8 @@ class SafetyPolicyConfig:
 
 @dataclass
 class RobotControllerConfig:
-    platform: PlatformConfig
+    robot_platform: RobotPlatformConfig
+    can_device: CanDeviceConfig
     runtime: RuntimeModeConfig
     hardware: HardwareSafetyConfig
     safety: SafetyPolicyConfig
@@ -66,21 +67,28 @@ class RobotControllerConfig:
     can: CanConfig
     processes: list[ProcessConfig]
 
+    @property
+    def platform(self) -> RobotPlatformConfig:
+        return self.robot_platform
+
 
 def parse_runtime_config(raw: dict[str, Any]) -> RuntimeModeConfig:
     return RuntimeModeConfig(mode=str(require_key(raw, "mode", "runtime")))
 
 
 def parse_hardware_safety_config(raw: dict[str, Any]) -> HardwareSafetyConfig:
+    _reject_removed_keys(
+        raw,
+        {
+            "require_manual_arm",
+            "require_estop",
+            "allow_enable_on_start",
+            "allowed_can_interfaces",
+        },
+        "hardware",
+    )
     return HardwareSafetyConfig(
         allow_real_can=require_bool(raw, "allow_real_can", "hardware"),
-        require_manual_arm=require_bool(raw, "require_manual_arm", "hardware"),
-        require_estop=require_bool(raw, "require_estop", "hardware"),
-        allow_enable_on_start=require_bool(raw, "allow_enable_on_start", "hardware"),
-        allowed_can_interfaces=[
-            str(item)
-            for item in require_list(raw, "allowed_can_interfaces", "hardware")
-        ],
     )
 
 
@@ -107,25 +115,22 @@ def parse_robot_controller_core_config(raw: dict[str, Any]) -> RobotControllerCo
     )
 
 
-def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
-    config_path = Path(path)
+def load_robot_controller_config(
+    path: str | Path | None = None,
+    *,
+    config_paths: ConfigPathRegistry | None = None,
+) -> RobotControllerConfig:
+    paths = load_config_paths() if config_paths is None else config_paths
+    config_path = Path(path).resolve() if path is not None else paths.config("robot_controller")
     raw = load_yaml_mapping(config_path)
+    _reject_removed_keys(raw, {"platform_config", "processes_config"}, "<root>")
 
-    platform_config_path = resolve_config_path(
-        config_path,
-        str(require_key(raw, "platform_config", "<root>")),
-        "platform_config",
-    )
-    platform = load_platform_config(platform_config_path)
-
-    processes_config_path = resolve_config_path(
-        config_path,
-        str(require_key(raw, "processes_config", "<root>")),
-        "processes_config",
-    )
+    robot_platform = load_robot_platform_config(paths.config("robot_platform"))
+    can_device = load_can_device_config(paths.config("can_device"))
 
     config = RobotControllerConfig(
-        platform=platform,
+        robot_platform=robot_platform,
+        can_device=can_device,
         runtime=parse_runtime_config(require_mapping(raw, "runtime", "<root>")),
         hardware=parse_hardware_safety_config(require_mapping(raw, "hardware", "<root>")),
         safety=parse_safety_policy_config(require_mapping(raw, "safety", "<root>")),
@@ -133,9 +138,18 @@ def load_robot_controller_config(path: str | Path) -> RobotControllerConfig:
         robot_controller=parse_robot_controller_core_config(
             require_mapping(raw, "robot_controller", "<root>")
         ),
-        shm=parse_shm_config(require_mapping(raw, "shm", "<root>"), platform),
-        can=parse_can_config(require_mapping(raw, "can", "<root>"), platform),
-        processes=load_processes_config(processes_config_path),
+        shm=parse_shm_config(
+            require_mapping(raw, "shm", "<root>"),
+            target_count=len(robot_platform.actuators),
+        ),
+        can=parse_can_config(require_mapping(raw, "can", "<root>"), robot_platform, can_device),
+        processes=load_processes_config(paths.config("processes")),
     )
     validate_app_config(config)
     return config
+
+
+def _reject_removed_keys(raw: dict[str, Any], removed_keys: set[str], path: str) -> None:
+    for key in sorted(removed_keys):
+        if key in raw:
+            raise ConfigError(f"{path}.{key} is not supported by robot_controller.yaml")

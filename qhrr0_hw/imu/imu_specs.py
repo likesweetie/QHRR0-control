@@ -17,8 +17,8 @@ class QHRR0ImuSpec:
     normalize_quat: bool
 
 
-def imu_spec_from_platform(platform) -> QHRR0ImuSpec:
-    imu = platform.imu
+def imu_spec_from_can_device(can_device) -> QHRR0ImuSpec:
+    imu = can_device.imu
     return QHRR0ImuSpec(
         name=str(imu.type),
         request_id=int(imu.request_id),
@@ -32,3 +32,5 @@ def imu_spec_from_platform(platform) -> QHRR0ImuSpec:
         normalize_quat=bool(imu.normalize_quat),
     )
 
+
+imu_spec_from_platform = imu_spec_from_can_device

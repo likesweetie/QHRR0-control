@@ -8,7 +8,7 @@ current manager/config path.
 
 ## Segments
 
-Names come from `config/app_config/platform.yaml`.
+Names come from `config/app_config/robot_controller.yaml`.
 
 | Segment | Writer | Reader | Purpose |
 | --- | --- | --- | --- |

@@ -1,12 +1,12 @@
 # Control Loop
 
-현재 제어 루프는 `robot_controller/controller.py`의 `RobotController.tick()`에서 직접 보인다.
+현재 제어 루프는 `robot_controller/controller.py`의 `RobotController.loop()`에서 직접 보인다.
 
 ## Frequency
 
 | Loop | Config/source | Current value |
 | --- | --- | --- |
-| RobotController tick | `robot_controller.control_hz` | `500` Hz in `config/app_config/robot_controller.yaml` |
+| RobotController loop | `robot_controller.control_hz` | `500` Hz in `config/app_config/robot_controller.yaml` |
 | Task controller policy output | `TASK_CONTROL_HZ` env | `50.0` Hz in `config/app_config/processes.yaml` |
 | Dashboard state publish | `shm.dashboard_state.publish_hz` | `10` Hz |
 | Control state SHM publish | `shm.control_state.publish_hz` | `500` Hz |
@@ -15,7 +15,7 @@
 
 ```mermaid
 sequenceDiagram
-    participant RC as RobotController.tick
+    participant RC as RobotController.loop
     participant OP as OperatorCommandShm
     participant SM as ControlModeFsm
     participant ACT as Actuator drivers

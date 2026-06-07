@@ -12,7 +12,7 @@ from hal.hardware.can.imu.driver import IMUDriver
 
 from qhrr0_hw.actuators import SPGMITConfig, create_spg_actuator_driver
 from qhrr0_hw.imu import E2BoxIMUProtocol
-from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_platform
+from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_config
 
 from robot_controller.config import RobotControllerConfig
 from robot_controller.state_machine import ControllerMode, ControlModeFsm
@@ -54,7 +54,10 @@ class RobotController:
 
         self.config = config
 
-        self.robot_spec: QHRR0RobotSpec = robot_spec_from_platform(config.platform)
+        self.robot_spec: QHRR0RobotSpec = robot_spec_from_config(
+            config.robot_platform,
+            config.can_device,
+        )
 
         self.can = CANProcessTransport(
             socket_path=config.can.daemon.ipc_socket_path,
@@ -64,13 +67,21 @@ class RobotController:
         ################################################################
         #actuator bring up
         protocol_range = self.config.can.mit_protocol_range
-        iq_full_scale_count = float(self.config.platform.spg_mit.iq_full_scale_count)
+        spg = self.config.can_device.drivers["spg_mit"]
+        iq_full_scale_count = float(spg.iq_full_scale_count)
         if iq_full_scale_count <= 0.0:
             raise ValueError("spg_mit.iq_full_scale_count must be positive")
         iq_count_to_amp = (
-            float(self.config.platform.spg_mit.iq_full_scale_current_a)
+            float(spg.iq_full_scale_current_a)
             / iq_full_scale_count
         )
+        unsupported_drivers = {
+            spec.driver
+            for spec in self.robot_spec.actuators
+            if spec.driver != "spg_mit"
+        }
+        if unsupported_drivers:
+            raise ValueError(f"Unsupported actuator drivers: {sorted(unsupported_drivers)}")
         mit_config = SPGMITConfig(
             p_max=protocol_range.position_rad,
             v_max=protocol_range.velocity_rad_s,
@@ -142,8 +153,7 @@ class RobotController:
     def start(self) -> None:
         try:
             self.runtime_phase = RuntimePhase.INIT_SHM
-            if self.config.shm.cleanup_stale_on_start:
-                self.shm_manager.cleanup_stale()
+            self.shm_manager.cleanup_stale()
             self.shm_manager.create_all()
             self.control_cmd_shm = ControlCommandShm.open(self.config.shm.mit_command.name)
             self.operator_cmd_shm = OperatorCommandShm.open(self.config.shm.operator_command.name)
@@ -268,8 +278,7 @@ class RobotController:
         self.can.close()
         self.shm_manager.close_all()
 
-        if self.config.shm.unlink_on_shutdown:
-            self.shm_manager.unlink_all()
+        self.shm_manager.unlink_all()
         self.runtime_phase = RuntimePhase.STOPPED
 
 
@@ -316,11 +325,26 @@ class RobotController:
 
 
     def _send_zero_set_all(self, command: OperatorCommandC | None = None) -> None:
+        offsets_by_can_id = self._zero_set_offsets_by_can_id(command)
+        target_can_ids = sorted(offsets_by_can_id) if offsets_by_can_id else sorted(self.actuators)
+
+        self._record_output_command("ZERO_SET", ())
+
+        for can_id in target_can_ids:
+            actuator = self.actuators.get(can_id)
+            if actuator is None:
+                logger.warning("Skipping zero-set for unknown actuator CAN ID 0x%03X", can_id)
+                continue
+            offset_deg = float(offsets_by_can_id.get(can_id, 0)) * 0.01
+            self.can.send_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
+
+    @staticmethod
+    def _zero_set_offsets_by_can_id(command: OperatorCommandC | None) -> dict[int, int]:
         if command is None:
-            return
+            return {}
         count = int(command.zero_target_count)
         if count == 0:
-            return
+            return {}
         if int(command.zero_target_magic) != OPERATOR_ZERO_TARGET_MAGIC:
             raise RuntimeError("Malformed ZERO_SET operator command: invalid zero target magic")
         if count > len(command.zero_targets):
@@ -335,19 +359,7 @@ class RobotController:
             if can_id == 0:
                 continue
             offsets[can_id] = int(target.offset_count)
-
-        offsets_by_can_id = offsets
-        target_can_ids = sorted(offsets_by_can_id) if offsets_by_can_id else sorted(self.actuators)
-
-        self._record_output_command("ZERO_SET", ())
-
-        for can_id in target_can_ids:
-            actuator = self.actuators.get(can_id)
-            if actuator is None:
-                logger.warning("Skipping zero-set for unknown actuator CAN ID 0x%03X", can_id)
-                continue
-            offset_deg = float(offsets_by_can_id.get(can_id, 0)) * 0.01
-            self.can.send_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
+        return offsets
 
 
     def _send_damping_all(self) -> None:
