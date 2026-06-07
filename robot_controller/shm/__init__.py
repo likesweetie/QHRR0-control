@@ -1,4 +1,5 @@
 from .aux_command import AuxCommandC, AuxCommandShm
+from .cstruct import CStructShm
 from .control_command import ControlCommandShm, ControlCommandC, ControlTargetC
 from .operator_command import (
     OperatorCommandC,
@@ -13,6 +14,7 @@ from .robot_state import RobotStateC, RobotStateShm
 __all__ = [
     "AuxCommandC",
     "AuxCommandShm",
+    "CStructShm",
     "ControlCommandC",
     "ControlCommandShm",
     "ControlTargetC",

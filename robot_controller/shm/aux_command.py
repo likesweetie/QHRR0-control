@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import ctypes
 import time
-from multiprocessing import shared_memory
+
+from robot_controller.shm.cstruct import CStructShm
 
 
 class AuxCommandC(ctypes.Structure):
@@ -33,54 +34,8 @@ BUTTON_FIELDS = (
 )
 
 
-class AuxCommandShm:
-    def __init__(self, name: str, *, create: bool = False, size: int | None = None) -> None:
-        self.name = str(name)
-        requested_size = AUX_COMMAND_SIZE if size is None else int(size)
-        if requested_size < AUX_COMMAND_SIZE:
-            raise ValueError(f"AuxCommandShm size is too small: {requested_size}/{AUX_COMMAND_SIZE}")
-        self.shm = shared_memory.SharedMemory(
-            name=self.name,
-            create=bool(create),
-            size=requested_size if create else 0,
-        )
-        if len(self.shm.buf) < AUX_COMMAND_SIZE:
-            actual_size = len(self.shm.buf)
-            self.close()
-            raise RuntimeError(f"AuxCommandShm segment is too small: {actual_size}/{AUX_COMMAND_SIZE}")
-
-    @classmethod
-    def open_reader(cls, name: str):
-        return cls(name, create=False)
-
-    @classmethod
-    def open_writer(cls, name: str):
-        return cls(name, create=False)
-
-    @classmethod
-    def create(cls, name: str, size: int | None = None):
-        shm = cls(name, create=True, size=size)
-        shm.clear()
-        return shm
-
-    def close(self) -> None:
-        if self.shm is not None:
-            self.shm.close()
-            self.shm = None
-
-    def unlink(self) -> None:
-        if self.shm is not None:
-            self.shm.unlink()
-
-    def clear(self) -> None:
-        self.shm.buf[: len(self.shm.buf)] = b"\x00" * len(self.shm.buf)
-
-    def read_relaxed(self) -> AuxCommandC:
-        return AuxCommandC.from_buffer_copy(self.shm.buf[:AUX_COMMAND_SIZE])
-
-    def write(self, command: AuxCommandC) -> None:
-        data = bytes(command)
-        self.shm.buf[: len(data)] = data
+class AuxCommandShm(CStructShm[AuxCommandC]):
+    struct_type = AuxCommandC
 
     def publish(
         self,

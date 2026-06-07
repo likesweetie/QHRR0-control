@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import ctypes
 import time
-from multiprocessing import shared_memory
 from typing import Any
+
+from robot_controller.shm.cstruct import CStructShm
 
 
 MAX_ROBOT_STATE_ACTUATORS = 12
@@ -54,6 +55,15 @@ class ImuStateC(ctypes.Structure):
         ("gyro_stale", ctypes.c_uint8),
     ]
 
+    def quat_wxyz(self) -> tuple[float, float, float, float]:
+        quat = self.quat_xyzw
+        return (
+            float(quat[3]),
+            float(quat[0]),
+            float(quat[1]),
+            float(quat[2]),
+        )
+
 
 class CommandTargetStateC(ctypes.Structure):
     _pack_ = 1
@@ -76,6 +86,12 @@ class CommandOutputStateC(ctypes.Structure):
         ("targets", CommandTargetStateC * MAX_ROBOT_STATE_ACTUATORS),
     ]
 
+    def valid_target_count(self) -> int:
+        return max(0, min(int(self.target_count), MAX_ROBOT_STATE_ACTUATORS))
+
+    def valid_targets(self) -> tuple[CommandTargetStateC, ...]:
+        return tuple(self.targets[: self.valid_target_count()])
+
 
 class RobotStateC(ctypes.Structure):
     _pack_ = 1
@@ -90,68 +106,38 @@ class RobotStateC(ctypes.Structure):
         ("command_output", CommandOutputStateC),
     ]
 
+    def is_initialized(self) -> bool:
+        return int(self.timestamp_ns) != 0
+
+    def valid_actuator_count(self) -> int:
+        return max(0, min(int(self.actuator_count), MAX_ROBOT_STATE_ACTUATORS))
+
+    def valid_actuators(self) -> tuple[ActuatorStateC, ...]:
+        return tuple(self.actuators[: self.valid_actuator_count()])
+
+    def actuator_by_can_id(self, can_id: int) -> ActuatorStateC | None:
+        can_id_int = int(can_id)
+        for actuator in self.valid_actuators():
+            if int(actuator.can_id) == can_id_int:
+                return actuator
+        return None
+
 
 ROBOT_STATE_SIZE = ctypes.sizeof(RobotStateC)
 
 
-class RobotStateShm:
-    def __init__(self, name: str, *, create: bool = False, size: int | None = None) -> None:
-        self.name = str(name)
-        requested_size = ROBOT_STATE_SIZE if size is None else int(size)
-        if requested_size < ROBOT_STATE_SIZE:
-            raise ValueError(f"RobotStateShm size is too small: {requested_size}/{ROBOT_STATE_SIZE}")
-        self.shm = shared_memory.SharedMemory(
-            name=self.name,
-            create=bool(create),
-            size=requested_size if create else 0,
-        )
-        if len(self.shm.buf) < ROBOT_STATE_SIZE:
-            self.close()
-            raise RuntimeError(f"RobotStateShm segment is too small: {len(self.shm.buf)}/{ROBOT_STATE_SIZE}")
-
-    @classmethod
-    def open_reader(cls, name: str):
-        return cls(name, create=False)
-
-    @classmethod
-    def open_writer(cls, name: str):
-        return cls(name, create=False)
-
-    @classmethod
-    def create(cls, name: str, size: int | None = None):
-        shm = cls(name, create=True, size=size)
-        shm.clear()
-        return shm
-
-    def close(self) -> None:
-        if self.shm is not None:
-            self.shm.close()
-            self.shm = None
-
-    def unlink(self) -> None:
-        if self.shm is not None:
-            self.shm.unlink()
-
-    def clear(self) -> None:
-        self.shm.buf[: len(self.shm.buf)] = b"\x00" * len(self.shm.buf)
-
-    def read_relaxed(self) -> RobotStateC:
-        return RobotStateC.from_buffer_copy(self.shm.buf[:ROBOT_STATE_SIZE])
-
-    def write(self, state: RobotStateC) -> None:
-        data = bytes(state)
-        self.shm.buf[: len(data)] = data
+class RobotStateShm(CStructShm[RobotStateC]):
+    struct_type = RobotStateC
 
     def read_latest(self) -> dict[str, Any] | None:
         state = self.read_relaxed()
-        if int(state.timestamp_ns) == 0:
+        if not state.is_initialized():
             return None
         return robot_state_to_dict(state)
 
 
 def robot_state_to_dict(state: RobotStateC) -> dict[str, Any]:
     mode_name = _mode_name(int(state.controller_mode))
-    actuator_count = min(int(state.actuator_count), MAX_ROBOT_STATE_ACTUATORS)
     imu = state.imu
     command_output = state.command_output
     return {
@@ -172,7 +158,7 @@ def robot_state_to_dict(state: RobotStateC) -> dict[str, Any]:
         },
         "actuators": [
             _actuator_to_dict(item)
-            for item in state.actuators[:actuator_count]
+            for item in state.valid_actuators()
         ],
         "command_output": _command_output_to_dict(command_output),
     }
@@ -197,7 +183,7 @@ def _actuator_to_dict(item: ActuatorStateC) -> dict[str, Any]:
 
 
 def _command_output_to_dict(item: CommandOutputStateC) -> dict[str, Any]:
-    target_count = min(int(item.target_count), MAX_ROBOT_STATE_ACTUATORS)
+    target_count = item.valid_target_count()
     timestamp_monotonic = float(item.timestamp_monotonic)
     age_s = None
     if timestamp_monotonic > 0.0:
@@ -210,7 +196,7 @@ def _command_output_to_dict(item: CommandOutputStateC) -> dict[str, Any]:
         "target_count": target_count,
         "targets": [
             _command_target_to_dict(target)
-            for target in item.targets[:target_count]
+            for target in item.valid_targets()
         ],
         "error": None,
     }

@@ -4,7 +4,8 @@ import ctypes
 import time
 from collections.abc import Iterable
 from enum import IntEnum
-from multiprocessing import shared_memory
+
+from robot_controller.shm.cstruct import CStructShm
 
 
 class OperatorCommandCode(IntEnum):
@@ -42,60 +43,18 @@ class OperatorCommandC(ctypes.Structure):
         ("zero_targets", OperatorZeroTargetC * OPERATOR_ZERO_TARGET_CAPACITY),
     ]
 
+    def valid_zero_target_count(self) -> int:
+        return max(0, min(int(self.zero_target_count), OPERATOR_ZERO_TARGET_CAPACITY))
+
+    def valid_zero_targets(self) -> tuple[OperatorZeroTargetC, ...]:
+        return tuple(self.zero_targets[: self.valid_zero_target_count()])
+
 
 OPERATOR_COMMAND_SIZE = ctypes.sizeof(OperatorCommandC)
 
 
-class OperatorCommandShm:
-    def __init__(self, name: str, *, create: bool = False, size: int | None = None) -> None:
-        self.name = str(name)
-        requested_size = OPERATOR_COMMAND_SIZE if size is None else int(size)
-        if requested_size < OPERATOR_COMMAND_SIZE:
-            raise ValueError(
-                f"OperatorCommandShm size is too small: {requested_size}/{OPERATOR_COMMAND_SIZE}"
-            )
-        self.shm = shared_memory.SharedMemory(
-            name=self.name,
-            create=bool(create),
-            size=requested_size if create else 0,
-        )
-        if len(self.shm.buf) < OPERATOR_COMMAND_SIZE:
-            self.close()
-            raise RuntimeError(
-                f"OperatorCommandShm segment is too small: {len(self.shm.buf)}/{OPERATOR_COMMAND_SIZE}"
-            )
-    @classmethod
-    def open_reader(cls, name: str):
-        return cls(name, create=False)
-
-    @classmethod
-    def open_writer(cls, name: str):
-        return cls(name, create=False)
-
-    @classmethod
-    def create(cls, name: str, size: int | None = None):
-        shm = cls(name, create=True, size=size)
-        shm.clear()
-        return shm
-
-    def close(self) -> None:
-        if self.shm is not None:
-            self.shm.close()
-            self.shm = None
-
-    def unlink(self) -> None:
-        if self.shm is not None:
-            self.shm.unlink()
-
-    def clear(self) -> None:
-        self.shm.buf[: len(self.shm.buf)] = b"\x00" * len(self.shm.buf)
-
-    def read_relaxed(self) -> OperatorCommandC:
-        return OperatorCommandC.from_buffer_copy(self.shm.buf[:OPERATOR_COMMAND_SIZE])
-
-    def write(self, command: OperatorCommandC) -> None:
-        data = bytes(command)
-        self.shm.buf[: len(data)] = data
+class OperatorCommandShm(CStructShm[OperatorCommandC]):
+    struct_type = OperatorCommandC
 
     def publish(self, code: OperatorCommandCode | int, target_mask: int = 0) -> int:
         command = self._build_command(code, target_mask=target_mask)

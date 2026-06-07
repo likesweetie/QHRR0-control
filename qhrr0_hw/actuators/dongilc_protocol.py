@@ -48,8 +48,12 @@ def round_half_away_from_zero(x: float) -> int:
 def float_to_uint(x: float, x_min: float, x_max: float, bits: int) -> int:
     require_range(x, x_min, x_max, "MIT field")
     span = x_max - x_min
-    max_int = (1 << bits) - 1
-    return round_half_away_from_zero((x - x_min) * max_int / span)
+    # max_int = (1 << bits) - 1 # has non-zero center
+    max_int = (1 << bits)
+    uint_max = max_int - 1
+    raw = round_half_away_from_zero((x - x_min) * uint_max / span)
+
+    return max(0, min(raw, uint_max))
 
 
 def wrap_u14(x: int) -> int:
