@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 import uuid
 
-from robot_controller.shm.types.robot_state import RobotStateShm, new_robot_state
-from robot_controller.state_machine import ControllerMode
+from qhrr0.app.robot_controller.shm.types.robot_state import RobotStateShm, new_robot_state
+from qhrr0.app.robot_controller.state_machine import ControllerMode
 
 
 class RobotStateShmTest(unittest.TestCase):

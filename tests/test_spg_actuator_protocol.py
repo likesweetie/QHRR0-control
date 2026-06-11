@@ -3,14 +3,14 @@ from __future__ import annotations
 import struct
 import unittest
 
-from hal.can_bus import CANFrame
+from qhrr0.app.hal.can_bus import CANFrame
 
-from qhrr0_hw.actuators.dongilc_protocol import (
+from qhrr0.app.hal.driver.actuators.dongilc_protocol import (
     SPGActuatorProtocol,
     SPGMITConfig,
     float_to_uint,
 )
-from robot_controller.subprocesses.dashboard.backend.can_decode import decode_spg_status
+from qhrr0.app.robot_controller.subprocesses.dashboard.backend.can_decode import decode_spg_status
 
 
 class SPGActuatorProtocolTest(unittest.TestCase):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import struct
 import unittest
 
-from robot_controller.shm.buffer import DoubleBuffer, PlainBuffer, SeqLockBuffer
+from qhrr0.app.robot_controller.shm.buffer import DoubleBuffer, PlainBuffer, SeqLockBuffer
 
 
 class PlainBufferTest(unittest.TestCase):

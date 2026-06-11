@@ -4,7 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from robot_controller.config import ConfigError, load_config_paths
+from qhrr0.factory.app_factory.app_factory import (
+    AppConfigError,
+    config_path,
+    load_config_paths,
+    policy_path,
+)
 
 
 class ConfigPathRegistryTest(unittest.TestCase):
@@ -12,26 +17,29 @@ class ConfigPathRegistryTest(unittest.TestCase):
         paths = load_config_paths()
 
         self.assertEqual(
-            paths.config("robot_controller"),
-            Path("config/app_config/robot_controller.yaml").resolve(),
+            config_path(paths, "robot_controller"),
+            Path("qhrr0/config/app_config/robot_controller.yaml").resolve(),
         )
         self.assertEqual(
-            paths.config("robot_platform"),
-            Path("config/app_config/robot_platform.yaml").resolve(),
+            config_path(paths, "can_device"),
+            Path("qhrr0/config/robot_config/can_device_config.yaml").resolve(),
         )
         self.assertEqual(
-            paths.policy_path("policy_list"),
-            Path("config/policy_config/qhrr/policy_list.yaml").resolve(),
+            policy_path(paths, "policy_list"),
+            Path(
+                "qhrr0/app/robot_controller/subprocesses/task_controller/"
+                "policy_config/qhrr/policy_list.yaml"
+            ).resolve(),
         )
-        self.assertTrue(paths.config("policy_runner").exists())
+        self.assertTrue(config_path(paths, "policy_runner").exists())
 
     def test_unknown_keys_raise_config_error(self) -> None:
         paths = load_config_paths()
 
-        with self.assertRaisesRegex(ConfigError, "configs.missing"):
-            paths.config("missing")
-        with self.assertRaisesRegex(ConfigError, "policy.missing"):
-            paths.policy_path("missing")
+        with self.assertRaisesRegex(AppConfigError, "configs.missing"):
+            config_path(paths, "missing")
+        with self.assertRaisesRegex(AppConfigError, "policy.missing"):
+            policy_path(paths, "missing")
 
     def test_empty_path_values_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -40,14 +48,17 @@ class ConfigPathRegistryTest(unittest.TestCase):
             config_dir.mkdir(parents=True)
             path = config_dir / "config_paths.yaml"
             path.write_text(
-                "configs:\n"
+                "app:\n"
                 "  robot_controller: ''\n"
+                "robot:\n"
+                "  can_device: qhrr0/config/robot_config/can_device_config.yaml\n"
                 "policy:\n"
-                "  policy_list: config/policy_config/qhrr/policy_list.yaml\n",
+                "  policy_list: qhrr0/app/robot_controller/subprocesses/"
+                "task_controller/policy_config/qhrr/policy_list.yaml\n",
                 encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(ConfigError, "robot_controller"):
+            with self.assertRaisesRegex(AppConfigError, "robot_controller"):
                 load_config_paths(path)
 
 

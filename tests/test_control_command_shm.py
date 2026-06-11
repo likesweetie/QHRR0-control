@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 import uuid
 
-from robot_controller.shm.types.control_command import ControlCommandC, ControlCommandShm
+from qhrr0.app.robot_controller.shm.types.control_command import ControlCommandC, ControlCommandShm
 
 
 class ControlCommandShmTest(unittest.TestCase):

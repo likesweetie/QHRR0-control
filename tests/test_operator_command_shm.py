@@ -3,15 +3,15 @@ from __future__ import annotations
 import unittest
 import uuid
 
-from robot_controller.shm.types.operator_command import (
+from qhrr0.app.robot_controller.shm.types.operator_command import (
     OPERATOR_ZERO_TARGET_MAGIC,
     OperatorCommandC,
     OperatorCommandCode,
     OperatorCommandShm,
 )
-from robot_controller.controller import RobotController
-from robot_controller.state_machine import ControllerMode, ControlModeFsm
-from robot_controller.subprocesses.dashboard.backend.operator_commands import build_operator_command
+from qhrr0.app.robot_controller.controller import RobotController
+from qhrr0.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
+from qhrr0.app.robot_controller.subprocesses.dashboard.backend.operator_commands import build_operator_command
 
 
 class OperatorCommandShmTest(unittest.TestCase):
@@ -82,7 +82,7 @@ class OperatorCommandShmTest(unittest.TestCase):
         command.command = int(OperatorCommandCode.ZERO_SET)
 
         first = controller._consume_operator_command(command)
-        with self.assertLogs("robot_controller.controller", level="WARNING"):
+        with self.assertLogs("qhrr0.app.robot_controller.controller", level="WARNING"):
             second = controller._consume_operator_command(command)
 
         self.assertEqual(first.command, OperatorCommandCode.ZERO_SET)
@@ -102,7 +102,7 @@ class OperatorCommandShmTest(unittest.TestCase):
         )
 
         state_machine.update(controller._consume_operator_command(command), 2.0)
-        with self.assertLogs("robot_controller.controller", level="WARNING"):
+        with self.assertLogs("qhrr0.app.robot_controller.controller", level="WARNING"):
             state_machine.update(controller._consume_operator_command(command), 3.0)
 
         self.assertEqual(state_machine.mode, ControllerMode.DISABLED)

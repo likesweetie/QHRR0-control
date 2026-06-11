@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from robot_controller.shm.types.operator_command import (
+from qhrr0.app.robot_controller.shm.types.operator_command import (
     OperatorCommandC,
     OperatorCommandCode,
 )
-from robot_controller.state_machine import ControllerMode, ControlModeFsm
+from qhrr0.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
 
 
 def command(code: OperatorCommandCode) -> OperatorCommandC:

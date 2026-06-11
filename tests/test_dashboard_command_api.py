@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from robot_controller.subprocesses.dashboard.backend.can_decode import (
+from qhrr0.app.robot_controller.subprocesses.dashboard.backend.can_decode import (
     SPG_CMD_MIT_ENTER,
     SPG_CMD_MIT_EXIT,
     SPG_CMD_MIT_SET_ZERO,
 )
-from robot_controller.subprocesses.dashboard.backend.command_api import CommandError, CommandService
-from robot_controller.subprocesses.dashboard.backend.state import MonitorState
+from qhrr0.app.robot_controller.subprocesses.dashboard.backend.command_api import CommandError, CommandService
+from qhrr0.app.robot_controller.subprocesses.dashboard.backend.state import MonitorState
 
 
 class FakeCANClient:

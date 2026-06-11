@@ -5,22 +5,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from robot_controller.process_supervisor.config import ProcessConfig
-from robot_controller.process_supervisor.process_supervisor import (
+from qhrr0.app.robot_controller.process_supervisor.process_supervisor import (
     ManagedProcess,
     ProcessSupervisor,
     logger,
 )
 
 
-def make_process_config(name: str = "example") -> ProcessConfig:
-    return ProcessConfig(
+def add_process(supervisor: ProcessSupervisor, name: str = "example") -> None:
+    supervisor.add_process(
         name=name,
-        command=["python", "-c", "print(1)"],
+        command=("python", "-c", "print(1)"),
         start_order=1,
         stop_order=1,
         new_terminal=False,
-        terminal_command=[],
+        terminal_command=(),
         working_dir=".",
         env_vars={},
     )
@@ -35,17 +34,30 @@ class ProcessSupervisorTest(unittest.TestCase):
         self.addCleanup(os.chdir, self.previous_cwd)
 
     def test_process_configs_exposes_configs_without_exposing_storage(self) -> None:
-        config = make_process_config()
-        supervisor = ProcessSupervisor([config])
+        supervisor = ProcessSupervisor()
+        add_process(supervisor)
 
         configs = supervisor.process_configs
-        self.assertEqual(configs["example"], config)
+        self.assertEqual(
+            configs["example"],
+            {
+                "name": "example",
+                "command": ["python", "-c", "print(1)"],
+                "start_order": 1,
+                "stop_order": 1,
+                "new_terminal": False,
+                "terminal_command": [],
+                "working_dir": ".",
+                "env_vars": {},
+            },
+        )
 
         configs.clear()
         self.assertIn("example", supervisor.process_configs)
 
     def test_status_keeps_dashboard_fields_flat(self) -> None:
-        supervisor = ProcessSupervisor([make_process_config()])
+        supervisor = ProcessSupervisor()
+        add_process(supervisor)
 
         row = supervisor.status()["example"]
 
@@ -60,7 +72,14 @@ class ProcessSupervisorTest(unittest.TestCase):
 
     def test_stop_always_cleans_pidfile_and_log_handle(self) -> None:
         process = ManagedProcess(
-            config=make_process_config(),
+            name="example",
+            command=("python", "-c", "print(1)"),
+            start_order=1,
+            stop_order=1,
+            new_terminal=False,
+            terminal_command=(),
+            working_dir=".",
+            env_vars={},
             pid_dir=Path(self.tmpdir.name) / "pid",
             log_dir=Path(self.tmpdir.name) / "log",
         )
