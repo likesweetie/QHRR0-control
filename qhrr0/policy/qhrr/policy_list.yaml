@@ -1,4 +1,5 @@
 # config/policy_config/qhrr/policy_list.yaml
 
+#will be obsoluted. list of folder should do the job
 list_of_policy_names:
-  - "qhrr"
+  - "hopping"

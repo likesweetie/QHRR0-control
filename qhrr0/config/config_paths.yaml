@@ -8,11 +8,6 @@ app:
   processes: "config/app_config/processes.yaml"
   dashboard: "config/app_config/dashboard.yaml"
   mujoco: "config/app_config/mujoco.yaml"
-  
-policy:
-  policy_list: "config/policy_config/qhrr/policy_list.yaml"
-  pd_config: "config/policy_config/qhrr/qhrr/pd_config.yaml"
-  policy_runner: "config/app_config/policy_runner.yaml"
 
 robot:
   can_device: "config/robot_config/can_device_config.yaml"

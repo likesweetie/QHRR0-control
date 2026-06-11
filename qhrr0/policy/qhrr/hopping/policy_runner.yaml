@@ -1,0 +1,33 @@
+robot: "qhrr0"
+
+observations:
+  components:
+        - { name: "base_ang_vel",              dim: 3,     scale: 0.05  }
+        - { name: "projected_gravity",         dim: 3,     scale: 1.0   }
+        - { name: "lin_vel_x_command",         dim: 1,     scale: 2.0   }
+        - { name: "lin_vel_y_command",         dim: 1,     scale: 2.0   }
+        - { name: "ang_vel_z_command",         dim: 1,     scale: 0.25  }
+        - { name: "delta_dof_pos",             dim: 3,     scale: 1.0   }
+        - { name: "dof_vel",                   dim: 3,     scale: 0.05  }
+        - { name: "last_actions",              dim: 3,     scale: 1.0   }
+        - { name: "last_last_actions",         dim: 3,     scale: 1.0   }
+        - { name: "last_last_last_actions",    dim: 3,     scale: 1.0   }
+
+default_joint_angle:
+  - -0.0
+  - -1.2
+  - 2.0
+
+action_scale: 0.15
+action_clip : 100
+
+joint gain:
+  kp: 15.0
+  kd: 0.5
+
+runner_type: "onnx"
+
+joint_idx_conversion:
+  isaaclab_to_rainbow:
+    input: [0, 1, 2]
+    output: [0, 1, 2]

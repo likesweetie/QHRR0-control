@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 
 from robot_controller.config import load_robot_controller_config, resolve_config_arg
-from hal.can_bus import CANFrame, CANDaemon, SocketCANBus
+from robot.app.hal.can_bus import CANFrame, CANDaemon, SocketCANBus
 
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class RxSubscribers:
                 sock.close()
 
 
-class CANSubprocessDaemon:
+class CANDaemon:
     def __init__(self, config_path: Path, replace_existing_socket: bool) -> None:
         self.config = load_robot_controller_config(config_path)
         self.socket_path = Path(self.config.can.daemon.ipc_socket_path)
@@ -225,7 +225,7 @@ def main() -> None:
         format="[%(levelname)s] %(name)s: %(message)s",
     )
     config_path = resolve_config_arg(args.config, args.config_key, default_key="robot_controller")
-    daemon = CANSubprocessDaemon(config_path, args.replace_existing_socket)
+    daemon = CANDaemon(config_path, args.replace_existing_socket)
     daemon.run()
 
 

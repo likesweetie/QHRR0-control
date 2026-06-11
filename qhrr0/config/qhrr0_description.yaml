@@ -1,0 +1,43 @@
+# config/app_config/robot_platform.yaml
+
+robot:
+  name: "qhrr"
+
+runtime:
+  mode: "simulation" # "simulation" or "hardware"
+  allow_real_can: false
+
+can:
+  allowed_interfaces:
+    - "vcan0"
+    - "can0"
+
+
+number_of_actuator: 3
+actuators:
+  - name: "RL_hip_roll"
+    driver: "spg_mit"
+    can_id: "0x141"
+    mujoco_joint: "RL_hip_roll"
+    mujoco_actuator: "RL_hip_roll"
+    sign: 1.0
+    offset_rad: 0.0
+
+  - name: "RL_hip_pitch"
+    driver: "spg_mit"
+    can_id: "0x142"
+    mujoco_joint: "RL_hip_pitch"
+    mujoco_actuator: "RL_hip_pitch"
+    sign: 1.0
+    offset_rad: 0.0
+
+  - name: "RL_knee_pitch"
+    driver: "spg_mit"
+    can_id: "0x143"
+    mujoco_joint: "RL_knee_pitch"
+    mujoco_actuator: "RL_knee_pitch"
+    sign: 1.0
+    offset_rad: 0.0
+
+assets:
+  mujoco_model_path: "third_party/mujoco/model/one_leg_v2/qhrr0_environment.xml"
