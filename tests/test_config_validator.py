@@ -1,7 +1,7 @@
 import pytest
 
 from qhrr0.app.helper.config_manage import (
-    validate_can_daemon_config,
+    validate_can_server_config,
     validate_control_mode_fsm_config,
     validate_process_supervisor_config,
     validate_robot_controller_config,
@@ -13,15 +13,24 @@ from qhrr0.app.helper.config_manage import (
 def _valid_robot_controller_config() -> dict:
     return {
         "robot_platform": {},
-        "can_device": {
-            "drivers": {
-                "spg_mit": {
-                    "iq_full_scale_count": 2048.0,
-                    "iq_full_scale_current_a": 33.0,
+        "hardware": {
+            "can": {
+                "drivers": {
+                    "spg_mit": {
+                        "iq_full_scale_count": 2048.0,
+                        "iq_full_scale_current_a": 33.0,
+                    },
                 },
             },
         },
         "can": {
+            "servers": [
+                {
+                    "name": "can_server",
+                    "ipc_socket_path": "/tmp/qhrr_can.sock",
+                    "connect_timeout_s": 1.0,
+                },
+            ],
             "daemon": {
                 "ipc_socket_path": "/tmp/qhrr_can.sock",
                 "connect_timeout_s": 1.0,
@@ -124,7 +133,7 @@ def test_validate_control_mode_fsm_config_rejects_negative_duration() -> None:
 def _valid_process_configs() -> list[dict]:
     return [
         {
-            "name": "can_daemon",
+            "name": "can_server",
             "command": ["python3", "-m", "module"],
             "start_order": 0,
             "stop_order": 10,
@@ -156,7 +165,7 @@ def test_validate_process_supervisor_config_requires_terminal_command() -> None:
         validate_process_supervisor_config(configs)
 
 
-def _valid_can_daemon_config() -> dict:
+def _valid_can_server_config() -> dict:
     return {
         "can": {
             "interface": "vcan0",
@@ -173,24 +182,24 @@ def _valid_can_daemon_config() -> dict:
     }
 
 
-def test_validate_can_daemon_config_accepts_valid_mapping() -> None:
-    validate_can_daemon_config(_valid_can_daemon_config())
+def test_validate_can_server_config_accepts_valid_mapping() -> None:
+    validate_can_server_config(_valid_can_server_config())
 
 
-def test_validate_can_daemon_config_rejects_bad_send_block() -> None:
-    config = _valid_can_daemon_config()
+def test_validate_can_server_config_rejects_bad_send_block() -> None:
+    config = _valid_can_server_config()
     config["can"]["daemon"]["send_block"] = "false"
 
     with pytest.raises(TypeError, match="send_block"):
-        validate_can_daemon_config(config)
+        validate_can_server_config(config)
 
 
-def test_validate_can_daemon_config_rejects_non_positive_queue_size() -> None:
-    config = _valid_can_daemon_config()
+def test_validate_can_server_config_rejects_non_positive_queue_size() -> None:
+    config = _valid_can_server_config()
     config["can"]["daemon"]["max_tx_queue_size"] = 0
 
     with pytest.raises(ValueError, match="max_tx_queue_size"):
-        validate_can_daemon_config(config)
+        validate_can_server_config(config)
 
 
 def _valid_shm_config() -> dict:

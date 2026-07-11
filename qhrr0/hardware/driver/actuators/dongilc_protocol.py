@@ -2,7 +2,7 @@
 SPG actuator CAN protocol.
 
 This module implements SPG-specific CAN frame encoding and decoding.
-It is compatible with the generic ActuatorDriver / ActuatorProtocolBase
+It is compatible with the generic ActuatorHardware / ActuatorProtocolBase
 structure.
 
 Responsibilities:
@@ -19,10 +19,10 @@ import struct
 import time
 from dataclasses import dataclass
 
-from hal.can_bus import CANFrame
+from qhrr0.app.hal.can import CANFrame
 
-from hal.hardware.can.actuator.protocol import ActuatorProtocolBase
-from hal.hardware.can.actuator.state import ActuatorState
+from qhrr0.hardware.actuator.protocol import ActuatorProtocolBase
+from qhrr0.hardware.actuator.state import ActuatorState
 
 
 ENC_MOD = 16384

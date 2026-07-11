@@ -15,7 +15,7 @@ can_monitor:
   node_timeout_s: 0.25
   stuff_factor: 1.15
 
-can_daemon:
+can_server:
   connect_timeout_s: 1.0
 
 spg_monitor:

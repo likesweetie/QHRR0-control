@@ -4,7 +4,6 @@ from collections import defaultdict
 from collections.abc import Callable
 
 from .frame import CANFrame
-from .can_types import CANFrameCallback
 
 
 logger = logging.getLogger(__name__)
@@ -22,18 +21,18 @@ class CANDispatcher:
     """
 
     def __init__(self) -> None:
-        self._callbacks_by_id: dict[int, list[CANFrameCallback]] = defaultdict(list)
-        self._wildcard_callbacks: list[CANFrameCallback] = []
+        self._callbacks_by_id: dict[int, list[Callable[[CANFrame], None]]] = defaultdict(list)
+        self._wildcard_callbacks: list[Callable[[CANFrame], None]] = []
         self._lock = threading.Lock()
 
-    def register(self, can_id: int, callback: CANFrameCallback) -> None:
+    def register(self, can_id: int, callback: Callable[[CANFrame], None]) -> None:
         """
         Register a callback for a specific CAN ID.
         """
         with self._lock:
             self._callbacks_by_id[can_id].append(callback)
 
-    def unregister(self, can_id: int, callback: CANFrameCallback) -> None:
+    def unregister(self, can_id: int, callback: Callable[[CANFrame], None]) -> None:
         """
         Unregister a callback from a specific CAN ID.
         """
@@ -51,7 +50,7 @@ class CANDispatcher:
             if not callbacks:
                 del self._callbacks_by_id[can_id]
 
-    def register_wildcard(self, callback: CANFrameCallback) -> None:
+    def register_wildcard(self, callback: Callable[[CANFrame], None]) -> None:
         """
         Register a callback that receives every CAN frame.
         Useful for logging, monitoring, and debugging.
@@ -59,7 +58,7 @@ class CANDispatcher:
         with self._lock:
             self._wildcard_callbacks.append(callback)
 
-    def unregister_wildcard(self, callback: CANFrameCallback) -> None:
+    def unregister_wildcard(self, callback: Callable[[CANFrame], None]) -> None:
         """
         Unregister a wildcard callback.
         """

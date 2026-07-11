@@ -1,28 +1,24 @@
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import signal
 import socket
-import sys
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-if __package__ and __package__.startswith("qhrr0."):
-    from ....hal.can_bus import CANFrame, CANDaemon as HALCANDaemon, SocketCANBus
-    from ....helper.config_manage import YAMLconfigLoader, validate_can_daemon_config
-else:
-    from hal.can_bus import CANFrame, CANDaemon as HALCANDaemon, SocketCANBus
-    from helper.config_manage import YAMLconfigLoader, validate_can_daemon_config
+from ....hal.can import CANFrame, CANDaemon as HALCANDaemon, SocketCANBus
+from ....helper.config_manage import YAMLconfigLoader, validate_can_server_config
 
 
 logger = logging.getLogger(__name__)
 CONFIG_ROOT = Path(__file__).resolve().parents[4] / "config"
 CONFIG_PATHS_PATH = CONFIG_ROOT / "config_paths.yaml"
 CONTROLLER_CONFIG_KEY = "robot_controller"
-CAN_DAEMON_CONFIG_KEY = "can_daemon"
+CAN_SERVER_CONFIG_KEY = "can_server"
 REPLACE_EXISTING_SOCKET = True
 
 
@@ -60,28 +56,28 @@ class RxSubscribers:
                 sock.close()
 
 
-class CANDaemon:
+class CANServer:
     def __init__(
         self,
         config: Mapping[str, Any],
         replace_existing_socket: bool = False,
     ) -> None:
-        validate_can_daemon_config(config)
+        validate_can_server_config(config)
         self.config = config
         self.socket_path = Path(self.config["can"]["daemon"]["ipc_socket_path"])
         self.replace_existing_socket = replace_existing_socket
         self.subscribers = RxSubscribers()
         self._stop_event = threading.Event()
         self._server_sock: socket.socket | None = None
-        self._can_bus: SocketCANBus | None = None
-        self._can_daemon: HALCANDaemon | None = None
+        self._bus: SocketCANBus | None = None
+        self._daemon: HALCANDaemon | None = None
         self._client_threads: list[threading.Thread] = []
 
     def run(self) -> None:
         self._install_signal_handlers()
         self._start_can()
         self._start_server()
-        logger.info("CAN daemon subprocess ready: %s", self.socket_path)
+        logger.info("CAN server subprocess ready: %s", self.socket_path)
         while not self._stop_event.is_set():
             assert self._server_sock is not None
             try:
@@ -90,7 +86,7 @@ class CANDaemon:
                 continue
             except OSError:
                 if not self._stop_event.is_set():
-                    logger.exception("CAN daemon accept failed")
+                    logger.exception("CAN server accept failed")
                 break
             thread = threading.Thread(
                 target=self._handle_client,
@@ -106,34 +102,34 @@ class CANDaemon:
         if self._server_sock is not None:
             self._server_sock.close()
             self._server_sock = None
-        if self._can_daemon is not None:
-            self._can_daemon.stop(float(self.config["can"]["daemon"]["join_timeout_s"]))
-            self._can_daemon = None
-        if self._can_bus is not None:
-            self._can_bus.close()
-            self._can_bus = None
+        if self._daemon is not None:
+            self._daemon.stop(float(self.config["can"]["daemon"]["join_timeout_s"]))
+            self._daemon = None
+        if self._bus is not None:
+            self._bus.close()
+            self._bus = None
         if self.socket_path.exists():
             self.socket_path.unlink()
 
     def _start_can(self) -> None:
-        self._can_bus = SocketCANBus(self.config["can"]["interface"])
-        self._disable_recv_own_messages(self._can_bus)
+        self._bus = SocketCANBus(self.config["can"]["interface"])
+        self._disable_recv_own_messages(self._bus)
         daemon_config = self.config["can"]["daemon"]
-        self._can_daemon = HALCANDaemon(
-            can_bus=self._can_bus,
+        self._daemon = HALCANDaemon(
+            can_bus=self._bus,
             rx_timeout=float(daemon_config["rx_timeout_s"]),
             tx_timeout=float(daemon_config["tx_timeout_s"]),
             join_timeout=float(daemon_config["join_timeout_s"]),
             max_tx_queue_size=int(daemon_config["max_tx_queue_size"]),
         )
-        self._can_daemon.register_wildcard_callback(self.subscribers.publish)
-        self._can_daemon.start()
+        self._daemon.register_wildcard_callback(self.subscribers.publish)
+        self._daemon.start()
 
     def _start_server(self) -> None:
         if self.socket_path.exists():
             if not self.replace_existing_socket:
-                raise RuntimeError(f"CAN daemon IPC socket already exists: {self.socket_path}")
-            logger.warning("Replacing existing CAN daemon IPC socket: %s", self.socket_path)
+                raise RuntimeError(f"CAN server IPC socket already exists: {self.socket_path}")
+            logger.warning("Replacing existing CAN server IPC socket: %s", self.socket_path)
             self.socket_path.unlink()
         self.socket_path.parent.mkdir(parents=True, exist_ok=True)
         self._server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -164,9 +160,9 @@ class CANDaemon:
                     except OSError:
                         return
                 return
-            raise RuntimeError(f"Unknown CAN daemon client role: {role}")
+            raise RuntimeError(f"Unknown CAN server client role: {role}")
         except Exception:
-            logger.exception("CAN daemon client handler failed")
+            logger.exception("CAN server client handler failed")
         finally:
             self.subscribers.remove(client_sock)
             file_obj.close()
@@ -183,8 +179,8 @@ class CANDaemon:
                     can_id=int(message["can_id"]),
                     data=bytes.fromhex(str(message["data"])),
                 )
-                assert self._can_daemon is not None
-                ok = self._can_daemon.send(
+                assert self._daemon is not None
+                ok = self._daemon.send(
                     frame,
                     block=bool(self.config["can"]["daemon"]["send_block"]),
                     timeout=self.config["can"]["daemon"]["send_timeout_s"],
@@ -218,10 +214,10 @@ class CANDaemon:
     def _read_json_line(file_obj) -> dict:
         line = file_obj.readline()
         if not line:
-            raise OSError("CAN daemon client disconnected")
+            raise OSError("CAN server client disconnected")
         message = json.loads(line.decode("utf-8"))
         if not isinstance(message, dict):
-            raise RuntimeError("CAN daemon message must be a JSON object")
+            raise RuntimeError("CAN server message must be a JSON object")
         return message
 
 
@@ -234,3 +230,26 @@ def app_config_path(config_key: str) -> Path:
     return CONFIG_ROOT.parent / str(relative_path)
 
 
+def load_can_server_config(path: Path | str) -> Mapping[str, Any]:
+    return YAMLconfigLoader(path, validator=validate_can_server_config).load()
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run one QHRR CAN server subprocess.")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=app_config_path(CAN_SERVER_CONFIG_KEY),
+        help="Path to can_server YAML config.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    config = load_can_server_config(args.config)
+    CANServer(config, replace_existing_socket=REPLACE_EXISTING_SOCKET).run()
+
+
+if __name__ == "__main__":
+    main()

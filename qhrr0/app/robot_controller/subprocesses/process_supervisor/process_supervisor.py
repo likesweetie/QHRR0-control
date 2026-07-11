@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from ...helper.config_manage import validate_process_supervisor_config
+from ....helper.config_manage import validate_process_supervisor_config
 
 
 logger = logging.getLogger(__name__)

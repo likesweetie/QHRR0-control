@@ -1,4 +1,7 @@
+can:
+  interface: "vcan0"
   daemon:
+    ipc_socket_path: "/tmp/qhrr_can_server.sock"
     rx_timeout_s: 0.001
     tx_timeout_s: 0.001
     join_timeout_s: 1.0

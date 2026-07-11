@@ -1,5 +1,5 @@
 """
-hal.can_bus
+hal.can
 
 CAN communication package for robot control systems.
 
@@ -13,12 +13,9 @@ This package exposes the public CAN API:
 """
 
 from .bus import CANBus, SocketCANBus
-from .can_types import CANFrameCallback
 from .daemon import CANDaemon
 from .dispatcher import CANDispatcher
 from .frame import CANFrame
-from .process_client import CANProcessClient
-from .process_transport import CANProcessTransport
 
 
 __all__ = [
@@ -27,7 +24,4 @@ __all__ = [
     "SocketCANBus",
     "CANDispatcher",
     "CANDaemon",
-    "CANFrameCallback",
-    "CANProcessClient",
-    "CANProcessTransport",
 ]

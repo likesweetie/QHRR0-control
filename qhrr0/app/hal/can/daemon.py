@@ -3,12 +3,12 @@ import queue
 import logging
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from .frame import CANFrame
 from .bus import CANBus, SocketCANBus
 from .dispatcher import CANDispatcher
-from .can_types import CANFrameCallback
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +46,13 @@ class CANDaemon:
 
         self._tx_queue: queue.Queue[CANFrame] = queue.Queue(maxsize=self.max_tx_queue_size)
 
-    def register_callback(self, can_id: int, callback: CANFrameCallback) -> None:
+    def register_callback(self, can_id: int, callback: Callable[[CANFrame], None]) -> None:
         self.dispatcher.register(can_id, callback)
 
-    def unregister_callback(self, can_id: int, callback: CANFrameCallback) -> None:
+    def unregister_callback(self, can_id: int, callback: Callable[[CANFrame], None]) -> None:
         self.dispatcher.unregister(can_id, callback)
 
-    def register_wildcard_callback(self, callback: CANFrameCallback) -> None:
+    def register_wildcard_callback(self, callback: Callable[[CANFrame], None]) -> None:
         self.dispatcher.register_wildcard(callback)
 
     def start(self):

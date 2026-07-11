@@ -20,8 +20,8 @@ from .socketcan_io import CAN_FRAME_SIZE, open_can_socket, parse_can_frame
 from .state import MonitorState
 from robot_controller.config import load_config_paths, load_robot_controller_config
 from robot_controller.config.loader import load_yaml_mapping
-from robot_controller.process_supervisor import ProcessSupervisor
-from hal.can_bus.process_client import CANProcessClient
+from qhrr0.app.robot_controller.subprocesses.process_supervisor import ProcessSupervisor
+from qhrr0.app.robot_controller.can_client import CANClient
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +31,7 @@ if not CONFIG_PATH.is_absolute():
     CONFIG_PATH = PROJECT_ROOT / CONFIG_PATH
 FRONTEND_DIR = ROOT / "frontend"
 logger = logging.getLogger(__name__)
-PROTECTED_PROCESS_NAMES = frozenset({"can_daemon", "dashboard"})
+PROTECTED_PROCESS_NAMES = frozenset({"can_server", "dashboard"})
 
 
 class RawSendRequest(BaseModel):
@@ -68,7 +68,7 @@ class ConfirmRequest(BaseModel):
 def require_no_platform_owned_keys(config: dict[str, Any]) -> None:
     checks = (
         ("can", ("iface", "bitrate")),
-        ("can_daemon", ("ipc_socket_path",)),
+        ("can_server", ("ipc_socket_path",)),
         ("robot_controller_state", ("control_shm_name", "dashboard_shm_name", "operator_shm_name", "operator_shm_size_bytes")),
         (
             "imu",
@@ -209,8 +209,8 @@ def load_config() -> tuple[dict[str, Any], Any]:
     config_paths = load_config_paths()
     controller_config = load_robot_controller_config(config_paths=config_paths)
     platform = controller_config.robot_platform
-    can_device = controller_config.can_device
-    spg = can_device.drivers["spg_mit"]
+    hardware_can = controller_config.hardware.can
+    spg = hardware_can.drivers["spg_mit"]
 
     config = dict(raw)
     resolve_zero_set_presets(config, platform)
@@ -224,20 +224,20 @@ def load_config() -> tuple[dict[str, Any], Any]:
         "node_timeout_s": can_monitor["node_timeout_s"],
         "stuff_factor": can_monitor["stuff_factor"],
     }
-    config.setdefault("can_daemon", {})
-    config["can_daemon"]["ipc_socket_path"] = controller_config.can.daemon.ipc_socket_path
+    config.setdefault("can_server", {})
+    config["can_server"]["ipc_socket_path"] = controller_config.can.servers[0].ipc_socket_path
     config.setdefault("robot_controller_state", {})
     config["robot_controller_state"]["control_shm_name"] = controller_config.shm.control_state.name
     config["robot_controller_state"]["dashboard_shm_name"] = controller_config.shm.dashboard_state.name
     config["robot_controller_state"]["operator_shm_name"] = controller_config.shm.operator_command.name
     config["robot_controller_state"]["operator_shm_size_bytes"] = controller_config.shm.operator_command.size_bytes
     config["imu"] = {
-        "request_id": can_device.imu.request_id,
-        "quat_id": can_device.imu.quat_id,
-        "gyro_id": can_device.imu.gyro_id,
-        "quat_scale": can_device.imu.quat_scale,
-        "gyro_scale": can_device.imu.gyro_scale,
-        "normalize_quat": can_device.imu.normalize_quat,
+        "request_id": hardware_can.imu.request_id,
+        "quat_id": hardware_can.imu.quat_id,
+        "gyro_id": hardware_can.imu.gyro_id,
+        "quat_scale": hardware_can.imu.quat_scale,
+        "gyro_scale": hardware_can.imu.gyro_scale,
+        "normalize_quat": hardware_can.imu.normalize_quat,
     }
     config["spg"] = {
         "default_mit_poll_hz": spg_monitor["default_mit_poll_hz"],
@@ -433,9 +433,10 @@ def current_controller_safety_reason() -> str | None:
 
 commands = CommandService(
     state,
-    CANProcessClient(
-        socket_path=str(nested(config, "can_daemon", "ipc_socket_path")),
-        connect_timeout_s=float(nested(config, "can_daemon", "connect_timeout_s")),
+    CANClient(
+        name="dashboard",
+        socket_path=str(nested(config, "can_server", "ipc_socket_path")),
+        connect_timeout_s=float(nested(config, "can_server", "connect_timeout_s")),
         rx_enabled=False,
     ),
     controller_safety_state_provider=current_controller_safety_state if robot_state_reader is not None else None,

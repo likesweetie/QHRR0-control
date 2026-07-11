@@ -1,11 +1,13 @@
 # config/app_config/processes.yaml
 
 processes:
-  - name: "can_daemon"
+  - name: "can_server"
     command:
       - "python3"
       - "-m"
-      - "robot_controller.subprocesses.can_daemon.main"
+      - "qhrr0.app.robot_controller.subprocesses.can_server.main"
+      - "--config"
+      - "qhrr0/config/app_config/sub_process/can_server.yaml"
     start_order: 0
     stop_order: 100
     new_terminal: true

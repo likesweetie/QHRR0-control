@@ -2,9 +2,9 @@ import math
 import struct
 import time
 
-from hal.can_bus import CANFrame
-from hal.hardware.can.imu import IMUProtocolBase
-from .robot_state import RobotPoseState
+from qhrr0.app.hal.can import CANFrame
+from qhrr0.hardware.imu import IMUProtocolBase
+from qhrr0.hardware.imu.state import RobotPoseState
 
 
 class E2BoxIMUProtocol(IMUProtocolBase):

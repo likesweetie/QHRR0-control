@@ -5,7 +5,9 @@
 
 app:
   robot_controller: "config/app_config/robot_controller_config.yaml"
-  subprocesses : "config/app_config/subprocesses.yaml
+  subprocesses: "config/app_config/subprocesses.yaml"
+  can_server: "config/app_config/sub_process/can_server.yaml"
+  dashboard: "config/app_config/sub_process/dashboard.yaml"
 
-robot:
-  can_device: "config/robot_config/can_device_config.yaml"
+hardware:
+  devices: "config/hardware_config/devices_config.yaml"

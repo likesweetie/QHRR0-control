@@ -12,11 +12,14 @@ state_machine:
   enable_duration_s: 0.5
 
 can:
-  interfaces:
-    - "vcan0"
+  servers:
+    - name: "can_server"
+      interface: "vcan0"
+      ipc_socket_path: "/tmp/qhrr_can_server.sock"
+      connect_timeout_s: 5.0
+
   bitrates:
     - 1000000
-  daemon_socket: "/tmp/qhrr_can_daemon.sock"
 
   command_timeout_s: 0.05
   bringup_delay_s: 0.1
@@ -51,4 +54,3 @@ shm:
     name: "qhrr_dashboard_state"
     size_bytes: 65536
     publish_hz: 10.0
-

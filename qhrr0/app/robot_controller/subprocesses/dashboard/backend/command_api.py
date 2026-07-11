@@ -10,8 +10,8 @@ from .can_decode import (
 )
 from .socketcan_io import CAN_FRAME_SIZE
 from .state import MonitorState
-from hal.can_bus import CANFrame
-from hal.can_bus.process_client import CANProcessClient
+from qhrr0.app.hal.can import CANFrame
+from qhrr0.app.robot_controller.can_client import CANClient
 
 
 class CommandError(RuntimeError):
@@ -102,7 +102,7 @@ class CommandService:
     def __init__(
         self,
         state: MonitorState,
-        can_client: CANProcessClient,
+        can_client: CANClient,
         *,
         controller_safety_state_provider: Callable[[], str | None] | None = None,
         controller_safety_reason_provider: Callable[[], str | None] | None = None,
@@ -119,7 +119,7 @@ class CommandService:
     def unlock_tx(self) -> None:
         self.state.tx_enabled = True
 
-    def require_tx(self) -> CANProcessClient:
+    def require_tx(self) -> CANClient:
         if not self.state.tx_enabled:
             raise CommandError("TX is locked")
         if not self._connected:
@@ -127,7 +127,7 @@ class CommandService:
                 self.can_client.connect()
             except (OSError, RuntimeError) as exc:
                 self.state.socket_error = str(exc)
-                raise CommandError(f"CAN daemon is not connected: {exc}") from exc
+                raise CommandError(f"CAN server is not connected: {exc}") from exc
             self._connected = True
         return self.can_client
 

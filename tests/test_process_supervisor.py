@@ -1,4 +1,4 @@
-from qhrr0.app.robot_controller.process_supervisor import ProcessSupervisor
+from qhrr0.app.robot_controller.subprocesses.process_supervisor import ProcessSupervisor
 
 
 def _process_configs() -> list[dict]:

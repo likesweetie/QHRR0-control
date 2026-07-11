@@ -4,20 +4,21 @@ import logging
 import math
 import time
 
+from collections.abc import Mapping, Sequence
 from enum import IntEnum
 
-from robot.app.hal.can_bus.process_transport import CANProcessTransport
-from robot.app.hal.hardware.can.actuator.driver import ActuatorDriver
-from robot.app.hal.hardware.can.imu.driver import IMUDriver
+from .can_client import CANClient
+from ..hal.can.frame import CANFrame
+from qhrr0.hardware.actuator.hardware import ActuatorHardware
+from qhrr0.hardware.imu.hardware import IMUHardware
 
-from robot.app.hal.driver.actuators import SPGMITConfig, create_spg_actuator_driver
-from robot.app.hal.driver.imu import E2BoxIMUProtocol
+from qhrr0.hardware.driver.actuators import SPGActuatorProtocol, SPGMITConfig
+from qhrr0.hardware.driver.imu import E2BoxIMUProtocol
 from hw_driver.robot_spec import QHRR0RobotSpec, robot_spec_from_config
 
-from robot.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
-from robot.app.robot_controller.process_supervisor import ProcessSupervisor
-from robot.app.robot_controller.shm.manager import ShmManager
-from robot_controller.shm import (
+from qhrr0.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
+from qhrr0.app.robot_controller.subprocesses.process_supervisor import ProcessSupervisor
+from qhrr0.app.robot_controller.shm import (
     COMMAND_OUTPUT_SOURCE_VALUES,
     MAX_ROBOT_STATE_ACTUATORS,
     OPERATOR_ZERO_TARGET_MAGIC,
@@ -39,7 +40,7 @@ class RuntimePhase(IntEnum):
     UNKNOWN = 0
     CREATED = 1
     INIT_SHM = 2
-    START_CAN_DAEMON = 3
+    START_CAN_SERVER = 3
     BRINGUP_IMU = 4
     START_CHILD_PROCESSES = 5
     RUNNING = 6
@@ -56,19 +57,24 @@ class RobotController:
 
         self.robot_spec: QHRR0RobotSpec = robot_spec_from_config(
             config["robot_platform"],
-            config["can_device"],
+            config["hardware"]["can"],
         )
 
-        can_daemon_config = config["can"]["daemon"]
-        self.can = CANProcessTransport(
-            socket_path=str(can_daemon_config["ipc_socket_path"]),
-            connect_timeout_s=float(can_daemon_config["connect_timeout_s"]),
-        )
+        can_server_configs = _can_server_configs(config["can"])
+        self.can_clients = {
+            server_config["name"]: CANClient(
+                name=server_config["name"],
+                socket_path=str(server_config["ipc_socket_path"]),
+                connect_timeout_s=float(server_config["connect_timeout_s"]),
+            )
+            for server_config in can_server_configs
+        }
+        self._can_routes_by_can_id = _can_routes_by_can_id(config["can"], self.can_clients)
 
         ################################################################
         #actuator bring up
         protocol_range = self.config["can"]["mit_protocol_range"]
-        spg = self.config["can_device"]["drivers"]["spg_mit"]
+        spg = self.config["hardware"]["can"]["drivers"]["spg_mit"]
         mit_config = SPGMITConfig(
             p_max=float(protocol_range["position_rad"]),
             v_max=float(protocol_range["velocity_rad_s"]),
@@ -78,12 +84,17 @@ class RobotController:
             feedback_position_max=float(protocol_range["feedback_position_rad"]),
         )
         self.actuators = {
-            spec.can_id: create_spg_actuator_driver(
-                spec,
-                mit_config=mit_config,
+            spec.can_id: ActuatorHardware(
+                name=spec.name,
+                driver=SPGActuatorProtocol(
+                    command_id=spec.can_id,
+                    feedback_id=spec.can_id,
+                    mit_config=mit_config,
+                    expose_single_turn_position=True,
+                    feedback_speed_is_motor_side=True,
+                    iq_count_to_amp=float(spg["iq_full_scale_current_a"])/float(spg["iq_full_scale_count"]),
+                ),
                 feedback_timeout_s=float(self.config["can"]["command_timeout_s"]),
-                feedback_speed_is_motor_side=True,
-                iq_count_to_amp=float(spg["iq_full_scale_current_a"])/float(spg["iq_full_scale_count"]),
             )
             for spec in self.robot_spec.actuators
         }
@@ -92,9 +103,9 @@ class RobotController:
         ################################################################
         #IMU bring up
         spec = self.robot_spec.imu
-        self.imu = IMUDriver(
+        self.imu = IMUHardware(
             name=spec.name,
-            protocol=E2BoxIMUProtocol(
+            driver=E2BoxIMUProtocol(
                 request_id=spec.request_id,
                 quat_id=spec.quat_id,
                 gyro_id=spec.gyro_id,
@@ -147,16 +158,18 @@ class RobotController:
             self.control_state_shm = RobotStateShm.open(self.config["shm"]["control_state"]["name"])
             self.dashboard_state_shm = RobotStateShm.open(self.config["shm"]["dashboard_state"]["name"])
 
-            self.runtime_phase = RuntimePhase.START_CAN_DAEMON
-            self.processes_supervisor.start_by_name("can_daemon")
-            self.can.connect()
+            self.runtime_phase = RuntimePhase.START_CAN_SERVER
+            for server_name in self.can_clients:
+                self.processes_supervisor.start_by_name(server_name)
+            for client in self.can_clients.values():
+                client.connect()
             self._register_callbacks()
 
             #bringup_imu()
             self.runtime_phase = RuntimePhase.BRINGUP_IMU
             if self.config["can"]["imu"]["enabled"] and self.config["can"]["imu"]["request_all_on_start"]:
                 for _ in range(int(self.config["can"]["imu"]["startup_request_count"])):
-                    self.can.send_frame(self.imu.make_request_all_frame())
+                    self._send_can_frame(self.imu.make_request_all_frame())
                     time.sleep(float(self.config["can"]["imu"]["startup_request_delay_s"]))
 
             self.runtime_phase = RuntimePhase.START_CHILD_PROCESSES
@@ -191,7 +204,7 @@ class RobotController:
         
         #sending request imu data
         if self.config["can"]["imu"]["enabled"] and self.config["can"]["imu"]["request_all_each_tick"]:
-            self.can.send_frame(self.imu.make_request_all_frame())
+            self._send_can_frame(self.imu.make_request_all_frame())
 
         assert self.operator_cmd_shm is not None
         op = self.operator_cmd_shm.read_relaxed()
@@ -202,19 +215,19 @@ class RobotController:
             case ControllerMode.ESTOP:
                 self._record_output_command("DISABLE", ())
                 for actuator in self.actuators.values():
-                    self.can.send_frame(actuator.make_disable_frame())
+                    self._send_can_frame(actuator.make_disable_frame())
                 return self._publish_state()
 
             case ControllerMode.DISABLED:
                 self._record_output_command("DISABLE", ())
                 for actuator in self.actuators.values():
-                    self.can.send_frame(actuator.make_disable_frame())
+                    self._send_can_frame(actuator.make_disable_frame())
                 return self._publish_state()
 
             case ControllerMode.ENABLING:
                 self._record_output_command("ENABLE", ())
                 for actuator in self.actuators.values():
-                    self.can.send_frame(actuator.make_enable_frame())
+                    self._send_can_frame(actuator.make_enable_frame())
                 return self._publish_state()
 
             case ControllerMode.ZERO_SETTING:
@@ -244,10 +257,10 @@ class RobotController:
         self._running = False
         self.runtime_phase = RuntimePhase.SHUTTING_DOWN
         try:
-            if self.can.is_connected():
+            if any(client.is_connected() for client in self.can_clients.values()):
                 self._record_output_command("DISABLE", ())
                 for actuator in self.actuators.values():
-                    self.can.send_frame(actuator.make_disable_frame())
+                    self._send_can_frame(actuator.make_disable_frame())
         except Exception as exc:
             logger.warning("Actuator shutdown warning: %s", exc)
         self.processes_supervisor.stop_all(float(self.config["robot_controller"]["shutdown_timeout_s"]))
@@ -262,7 +275,8 @@ class RobotController:
         ):
             if item is not None:
                 item.close()
-        self.can.close()
+        for client in self.can_clients.values():
+            client.close()
         self.shm_manager.close_all()
 
         self.shm_manager.unlink_all()
@@ -271,17 +285,47 @@ class RobotController:
     def _register_callbacks(self) -> None:
         for driver in self.actuators.values():
             for can_id in driver.rx_can_ids():
-                self.can.register_callback(
+                self._register_can_callback(
                     can_id,
                     lambda frame, driver=driver: self._on_actuator_frame(driver, frame),
                 )
         for can_id in self.imu.rx_can_ids():
-            self.can.register_callback(can_id, self.imu.on_frame)
+            self._register_can_callback(can_id, self.imu.on_frame)
 
-    def _on_actuator_frame(self, driver: ActuatorDriver, frame) -> None:
-        if self.can.is_recent_tx_echo(frame):
+    def _on_actuator_frame(self, driver: ActuatorHardware, frame) -> None:
+        if self._is_recent_tx_echo(frame):
             return
         driver.on_frame(frame)
+
+    def _send_can_frame(self, frame: CANFrame) -> None:
+        self._can_client_for_can_id(int(frame.can_id)).send_frame(frame)
+
+    def _register_can_callback(self, can_id: int, callback) -> None:
+        self._can_client_for_can_id(can_id).register_callback(can_id, callback)
+
+    def _is_recent_tx_echo(self, frame: CANFrame) -> bool:
+        return any(
+            client.is_recent_tx_echo(frame)
+            for client in self.can_clients.values()
+        )
+
+    def _can_client_for_can_id(self, can_id: int) -> CANClient:
+        if len(self.can_clients) == 1:
+            return next(iter(self.can_clients.values()))
+
+        try:
+            server_name = self._can_routes_by_can_id[int(can_id)]
+        except KeyError:
+            raise RuntimeError(
+                f"CAN ID 0x{int(can_id):03X} has no can.routes entry for multi-server routing"
+            ) from None
+
+        try:
+            return self.can_clients[server_name]
+        except KeyError:
+            raise RuntimeError(
+                f"CAN ID 0x{int(can_id):03X} routes to unknown CAN server: {server_name}"
+            ) from None
 
     def _consume_operator_command(self, command: OperatorCommandC) -> OperatorCommandC:
         try:
@@ -322,7 +366,7 @@ class RobotController:
                 logger.warning("Skipping zero-set for unknown actuator CAN ID 0x%03X", can_id)
                 continue
             offset_deg = float(offsets_by_can_id.get(can_id, 0)) * 0.01
-            self.can.send_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
+            self._send_can_frame(actuator.make_zero_position_frame(offset_deg=offset_deg))
 
     @staticmethod
     def _zero_set_offsets_by_can_id(command: OperatorCommandC | None) -> dict[int, int]:
@@ -364,7 +408,7 @@ class RobotController:
         self._record_output_command("DAMPING", targets)
         for can_id in sorted(self.actuators):
             actuator = self.actuators[can_id]
-            self.can.send_frame(
+            self._send_can_frame(
                 actuator.make_impedance_command_frame(
                     position_rad=0.0,
                     velocity_rad_s=0.0,
@@ -391,7 +435,7 @@ class RobotController:
                 tau_target_nm=float(target.tau),
             )
             targets.append(command_target)
-            self.can.send_frame(
+            self._send_can_frame(
                 actuator.make_impedance_command_frame(
                     position_rad=command_target.p_target_rad,
                     velocity_rad_s=command_target.v_target_rad_s,
@@ -539,3 +583,81 @@ def _command_target_state(
     target.kd = float(kd)
     target.tau_target_nm = float(tau_target_nm)
     return target
+
+
+def _can_server_configs(can_config: Mapping[str, object]) -> tuple[dict[str, object], ...]:
+    servers = can_config["servers"]
+    if isinstance(servers, str) or not isinstance(servers, Sequence):
+        raise TypeError("RobotController config 'can.servers' must be a non-empty sequence")
+    if not servers:
+        raise ValueError("RobotController config 'can.servers' must not be empty")
+
+    normalized: list[dict[str, object]] = []
+    seen_names: set[str] = set()
+    for index, server in enumerate(servers):
+        if not isinstance(server, Mapping):
+            raise TypeError(f"RobotController config 'can.servers[{index}]' must be a mapping")
+
+        name = server["name"]
+        ipc_socket_path = server["ipc_socket_path"]
+        connect_timeout_s = server["connect_timeout_s"]
+
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"RobotController config 'can.servers[{index}].name' must be a non-empty string")
+        if name in seen_names:
+            raise ValueError(f"Duplicate CAN server name: {name}")
+        seen_names.add(name)
+
+        if not isinstance(ipc_socket_path, str) or not ipc_socket_path:
+            raise ValueError(
+                f"RobotController config 'can.servers[{index}].ipc_socket_path' "
+                "must be a non-empty string"
+            )
+        if isinstance(connect_timeout_s, bool) or float(connect_timeout_s) <= 0.0:
+            raise ValueError(
+                f"RobotController config 'can.servers[{index}].connect_timeout_s' "
+                "must be positive"
+            )
+
+        normalized.append(
+            {
+                "name": name,
+                "ipc_socket_path": ipc_socket_path,
+                "connect_timeout_s": connect_timeout_s,
+            }
+        )
+
+    return tuple(normalized)
+
+
+def _can_routes_by_can_id(
+    can_config: Mapping[str, object],
+    can_clients: Mapping[str, CANClient],
+) -> dict[int, str]:
+    raw_routes = can_config.get("routes")
+    if raw_routes is None:
+        if len(can_clients) == 1:
+            return {}
+        raise ValueError("RobotController config 'can.routes' is required when multiple CAN servers are configured")
+    if not isinstance(raw_routes, Mapping):
+        raise TypeError("RobotController config 'can.routes' must be a mapping of CAN ID to CAN server name")
+
+    routes: dict[int, str] = {}
+    for raw_can_id, raw_server_name in raw_routes.items():
+        can_id = _parse_can_id(raw_can_id)
+        if not isinstance(raw_server_name, str) or not raw_server_name:
+            raise ValueError(f"CAN route for 0x{can_id:03X} must be a non-empty server name")
+        if raw_server_name not in can_clients:
+            raise ValueError(f"CAN route for 0x{can_id:03X} references unknown server: {raw_server_name}")
+        routes[can_id] = raw_server_name
+    return routes
+
+
+def _parse_can_id(value: object) -> int:
+    if isinstance(value, bool):
+        raise TypeError("CAN ID must be int-like, got bool")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value, 0)
+    raise TypeError(f"CAN ID must be int-like, got {type(value).__name__}")

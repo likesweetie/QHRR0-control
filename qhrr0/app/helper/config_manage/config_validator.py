@@ -9,7 +9,7 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
         raise TypeError(f"RobotController config must be a mapping, got {type(config).__name__}")
 
     robot_platform = config["robot_platform"]
-    can_device = config["can_device"]
+    hardware = config["hardware"]
     can = config["can"]
     shm = config["shm"]
     state_machine = config["state_machine"]
@@ -19,7 +19,7 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
 
     for name, value in (
         ("robot_platform", robot_platform),
-        ("can_device", can_device),
+        ("hardware", hardware),
         ("can", can),
         ("shm", shm),
         ("state_machine", state_machine),
@@ -32,9 +32,10 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
                 f"got {type(value).__name__}"
             )
 
-    can_device_drivers = can_device["drivers"]
-    spg_mit = can_device_drivers["spg_mit"]
-    can_daemon = can["daemon"]
+    hardware_can = hardware["can"]
+    hardware_can_drivers = hardware_can["drivers"]
+    spg_mit = hardware_can_drivers["spg_mit"]
+    can_servers = can["servers"]
     can_imu = can["imu"]
     mit_protocol_range = can["mit_protocol_range"]
     shm_mit_command = shm["mit_command"]
@@ -43,9 +44,9 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
     shm_dashboard_state = shm["dashboard_state"]
 
     for name, value in (
-        ("can_device.drivers", can_device_drivers),
-        ("can_device.drivers.spg_mit", spg_mit),
-        ("can.daemon", can_daemon),
+        ("hardware.can", hardware_can),
+        ("hardware.can.drivers", hardware_can_drivers),
+        ("hardware.can.drivers.spg_mit", spg_mit),
         ("can.imu", can_imu),
         ("can.mit_protocol_range", mit_protocol_range),
         ("shm.mit_command", shm_mit_command),
@@ -60,8 +61,6 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
             )
 
     required_values = (
-        ("can.daemon.ipc_socket_path", can_daemon["ipc_socket_path"]),
-        ("can.daemon.connect_timeout_s", can_daemon["connect_timeout_s"]),
         ("can.command_timeout_s", can["command_timeout_s"]),
         ("can.imu.enabled", can_imu["enabled"]),
         ("can.imu.request_all_on_start", can_imu["request_all_on_start"]),
@@ -74,8 +73,8 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
         ("can.mit_protocol_range.kd", mit_protocol_range["kd"]),
         ("can.mit_protocol_range.torque_ff_nm", mit_protocol_range["torque_ff_nm"]),
         ("can.mit_protocol_range.feedback_position_rad", mit_protocol_range["feedback_position_rad"]),
-        ("can_device.drivers.spg_mit.iq_full_scale_count", spg_mit["iq_full_scale_count"]),
-        ("can_device.drivers.spg_mit.iq_full_scale_current_a", spg_mit["iq_full_scale_current_a"]),
+        ("hardware.can.drivers.spg_mit.iq_full_scale_count", spg_mit["iq_full_scale_count"]),
+        ("hardware.can.drivers.spg_mit.iq_full_scale_current_a", spg_mit["iq_full_scale_current_a"]),
         ("shm.mit_command.name", shm_mit_command["name"]),
         ("shm.operator_command.name", shm_operator_command["name"]),
         ("shm.control_state.name", shm_control_state["name"]),
@@ -104,9 +103,8 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
             raise ValueError(f"RobotController config '{name}' must not be null")
 
     for name, value in (
-        ("can.daemon.connect_timeout_s", can_daemon["connect_timeout_s"]),
         ("can.command_timeout_s", can["command_timeout_s"]),
-        ("can_device.drivers.spg_mit.iq_full_scale_count", spg_mit["iq_full_scale_count"]),
+        ("hardware.can.drivers.spg_mit.iq_full_scale_count", spg_mit["iq_full_scale_count"]),
         ("shm.control_state.publish_hz", shm_control_state["publish_hz"]),
         ("shm.dashboard_state.publish_hz", shm_dashboard_state["publish_hz"]),
         ("robot_controller.control_hz", robot_controller["control_hz"]),
@@ -128,6 +126,30 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
 
     if isinstance(processes, str) or not isinstance(processes, Sequence):
         raise TypeError("RobotController config 'processes' must be a sequence of process configs")
+    if isinstance(can_servers, str) or not isinstance(can_servers, Sequence) or not can_servers:
+        raise TypeError("RobotController config 'can.servers' must be a non-empty sequence")
+    seen_can_server_names: set[str] = set()
+    for index, server in enumerate(can_servers):
+        if not isinstance(server, Mapping):
+            raise TypeError(f"RobotController config 'can.servers[{index}]' must be a mapping")
+        name = server["name"]
+        ipc_socket_path = server["ipc_socket_path"]
+        connect_timeout_s = server["connect_timeout_s"]
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"RobotController config 'can.servers[{index}].name' must be a non-empty string")
+        if name in seen_can_server_names:
+            raise ValueError(f"Duplicate CAN server name: {name}")
+        seen_can_server_names.add(name)
+        if not isinstance(ipc_socket_path, str) or not ipc_socket_path:
+            raise ValueError(
+                f"RobotController config 'can.servers[{index}].ipc_socket_path' "
+                "must be a non-empty string"
+            )
+        if isinstance(connect_timeout_s, bool) or float(connect_timeout_s) <= 0.0:
+            raise ValueError(
+                f"RobotController config 'can.servers[{index}].connect_timeout_s' "
+                "must be positive"
+            )
 
 
 def validate_supported_actuator_drivers(
@@ -195,18 +217,18 @@ def validate_process_supervisor_config(process_configs: Sequence[Mapping[str, An
         int(stop_order)
 
 
-def validate_can_daemon_config(config: Mapping[str, Any]) -> None:
+def validate_can_server_config(config: Mapping[str, Any]) -> None:
     if not isinstance(config, Mapping):
-        raise TypeError(f"CAN daemon config must be a mapping, got {type(config).__name__}")
+        raise TypeError(f"CAN server config must be a mapping, got {type(config).__name__}")
 
     can = config["can"]
     if not isinstance(can, Mapping):
-        raise TypeError(f"CAN daemon config 'can' must be a mapping, got {type(can).__name__}")
+        raise TypeError(f"CAN server config 'can' must be a mapping, got {type(can).__name__}")
 
     daemon = can["daemon"]
     if not isinstance(daemon, Mapping):
         raise TypeError(
-            f"CAN daemon config 'can.daemon' must be a mapping, "
+            f"CAN server config 'can.daemon' must be a mapping, "
             f"got {type(daemon).__name__}"
         )
 
@@ -220,9 +242,9 @@ def validate_can_daemon_config(config: Mapping[str, Any]) -> None:
     send_timeout_s = daemon["send_timeout_s"]
 
     if not isinstance(interface, str) or not interface:
-        raise ValueError("CAN daemon config 'can.interface' must be a non-empty string")
+        raise ValueError("CAN server config 'can.interface' must be a non-empty string")
     if not isinstance(ipc_socket_path, str) or not ipc_socket_path:
-        raise ValueError("CAN daemon config 'can.daemon.ipc_socket_path' must be a non-empty string")
+        raise ValueError("CAN server config 'can.daemon.ipc_socket_path' must be a non-empty string")
 
     for name, value in (
         ("can.daemon.rx_timeout_s", rx_timeout_s),
@@ -230,18 +252,18 @@ def validate_can_daemon_config(config: Mapping[str, Any]) -> None:
         ("can.daemon.join_timeout_s", join_timeout_s),
     ):
         if isinstance(value, bool) or float(value) <= 0.0:
-            raise ValueError(f"CAN daemon config '{name}' must be positive")
+            raise ValueError(f"CAN server config '{name}' must be positive")
 
     if isinstance(max_tx_queue_size, bool) or int(max_tx_queue_size) <= 0:
-        raise ValueError("CAN daemon config 'can.daemon.max_tx_queue_size' must be positive")
+        raise ValueError("CAN server config 'can.daemon.max_tx_queue_size' must be positive")
 
     if not isinstance(send_block, bool):
         raise TypeError(
-            f"CAN daemon config 'can.daemon.send_block' must be bool, "
+            f"CAN server config 'can.daemon.send_block' must be bool, "
             f"got {type(send_block).__name__}"
         )
     if send_timeout_s is not None and (isinstance(send_timeout_s, bool) or float(send_timeout_s) < 0.0):
-        raise ValueError("CAN daemon config 'can.daemon.send_timeout_s' must be null or >= 0")
+        raise ValueError("CAN server config 'can.daemon.send_timeout_s' must be null or >= 0")
 
 
 def validate_shm_config(config: Mapping[str, Any]) -> None:
