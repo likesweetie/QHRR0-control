@@ -1,25 +1,48 @@
+from __future__ import annotations
+
 import math
 import struct
 import time
+from dataclasses import dataclass
 
 from qhrr0.app.hal.can import CANFrame
-from qhrr0.hardware.imu import IMUProtocolBase
-from qhrr0.hardware.imu.state import RobotPoseState
+
+E2BOX_REQUEST_ID = 0x221
+E2BOX_QUAT_ID = 0x2A1
+E2BOX_GYRO_ID = 0x321
+
+E2BOX_CMD_GET_QUAT = 0x01
+E2BOX_CMD_GET_GYRO = 0x02
+E2BOX_CMD_GET_ALL = 0x03
+
+E2BOX_QUAT_SCALE = 10000.0
+E2BOX_GYRO_SCALE = 100.0
+
+E2BOX_NORMALIZE_QUAT = True
 
 
-class E2BoxIMUProtocol(IMUProtocolBase):
+@dataclass(frozen=True)
+class RobotPoseState:
+    quat_xyzw: tuple[float, float, float, float] | None = None
+    projected_gravity_b: tuple[float, float, float] | None = None
+    angular_velocity_rad_s: tuple[float, float, float] | None = None
+    last_quat_t: float = 0.0
+    last_gyro_t: float = 0.0
+
+
+class E2BoxIMUProtocol():
     def __init__(
         self,
         *,
-        request_id: int,
-        quat_id: int,
-        gyro_id: int,
-        cmd_get_quat: int,
-        cmd_get_gyro: int,
-        cmd_get_all: int,
-        quat_scale: float,
-        gyro_scale: float,
-        normalize_quat: bool,
+        request_id: int = E2BOX_REQUEST_ID,
+        quat_id: int = E2BOX_QUAT_ID,
+        gyro_id: int = E2BOX_GYRO_ID,
+        cmd_get_quat: int = E2BOX_CMD_GET_QUAT,
+        cmd_get_gyro: int = E2BOX_CMD_GET_GYRO,
+        cmd_get_all: int = E2BOX_CMD_GET_ALL,
+        quat_scale: float = E2BOX_QUAT_SCALE,
+        gyro_scale: float = E2BOX_GYRO_SCALE,
+        normalize_quat: bool = E2BOX_NORMALIZE_QUAT,
     ) -> None:
         self.request_id = int(request_id)
         self.quat_id = int(quat_id)

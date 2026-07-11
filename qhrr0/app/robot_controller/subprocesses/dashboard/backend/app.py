@@ -22,6 +22,17 @@ from robot_controller.config import load_config_paths, load_robot_controller_con
 from robot_controller.config.loader import load_yaml_mapping
 from qhrr0.app.robot_controller.subprocesses.process_supervisor import ProcessSupervisor
 from qhrr0.app.robot_controller.can_client import CANClient
+from qhrr0.hardware.driver import (
+    E2BOX_GYRO_ID,
+    E2BOX_GYRO_SCALE,
+    E2BOX_NORMALIZE_QUAT,
+    E2BOX_QUAT_ID,
+    E2BOX_QUAT_SCALE,
+    E2BOX_REQUEST_ID,
+    SPG_IQ_FULL_SCALE_COUNT,
+    SPG_IQ_FULL_SCALE_CURRENT_A,
+    SPG_MIT_DEFAULT_CONFIG,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -209,8 +220,6 @@ def load_config() -> tuple[dict[str, Any], Any]:
     config_paths = load_config_paths()
     controller_config = load_robot_controller_config(config_paths=config_paths)
     platform = controller_config.robot_platform
-    hardware_can = controller_config.hardware.can
-    spg = hardware_can.drivers["spg_mit"]
 
     config = dict(raw)
     resolve_zero_set_presets(config, platform)
@@ -232,23 +241,23 @@ def load_config() -> tuple[dict[str, Any], Any]:
     config["robot_controller_state"]["operator_shm_name"] = controller_config.shm.operator_command.name
     config["robot_controller_state"]["operator_shm_size_bytes"] = controller_config.shm.operator_command.size_bytes
     config["imu"] = {
-        "request_id": hardware_can.imu.request_id,
-        "quat_id": hardware_can.imu.quat_id,
-        "gyro_id": hardware_can.imu.gyro_id,
-        "quat_scale": hardware_can.imu.quat_scale,
-        "gyro_scale": hardware_can.imu.gyro_scale,
-        "normalize_quat": hardware_can.imu.normalize_quat,
+        "request_id": E2BOX_REQUEST_ID,
+        "quat_id": E2BOX_QUAT_ID,
+        "gyro_id": E2BOX_GYRO_ID,
+        "quat_scale": E2BOX_QUAT_SCALE,
+        "gyro_scale": E2BOX_GYRO_SCALE,
+        "normalize_quat": E2BOX_NORMALIZE_QUAT,
     }
     config["spg"] = {
         "default_mit_poll_hz": spg_monitor["default_mit_poll_hz"],
-        "feedback_position_max_rad": spg.feedback_position_max_rad,
-        "iq_full_scale_count": spg.iq_full_scale_count,
-        "iq_full_scale_current_a": spg.iq_full_scale_current_a,
-        "p_max_rad": spg.p_max_rad,
-        "v_max_rad_s": spg.v_max_rad_s,
-        "kp_max": spg.kp_max,
-        "kd_max": spg.kd_max,
-        "tau_max_nm": spg.tau_max_nm,
+        "feedback_position_max_rad": SPG_MIT_DEFAULT_CONFIG.feedback_position_max,
+        "iq_full_scale_count": SPG_IQ_FULL_SCALE_COUNT,
+        "iq_full_scale_current_a": SPG_IQ_FULL_SCALE_CURRENT_A,
+        "p_max_rad": SPG_MIT_DEFAULT_CONFIG.p_max,
+        "v_max_rad_s": SPG_MIT_DEFAULT_CONFIG.v_max,
+        "kp_max": SPG_MIT_DEFAULT_CONFIG.kp_max,
+        "kd_max": SPG_MIT_DEFAULT_CONFIG.kd_max,
+        "tau_max_nm": SPG_MIT_DEFAULT_CONFIG.tau_max,
     }
     config.setdefault("safety", {})
     config["safety"]["tx_enabled_by_default"] = False

@@ -32,23 +32,15 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
                 f"got {type(value).__name__}"
             )
 
-    hardware_can = hardware["can"]
-    hardware_can_drivers = hardware_can["drivers"]
-    spg_mit = hardware_can_drivers["spg_mit"]
     can_servers = can["servers"]
     can_imu = can["imu"]
-    mit_protocol_range = can["mit_protocol_range"]
     shm_mit_command = shm["mit_command"]
     shm_operator_command = shm["operator_command"]
     shm_control_state = shm["control_state"]
     shm_dashboard_state = shm["dashboard_state"]
 
     for name, value in (
-        ("hardware.can", hardware_can),
-        ("hardware.can.drivers", hardware_can_drivers),
-        ("hardware.can.drivers.spg_mit", spg_mit),
         ("can.imu", can_imu),
-        ("can.mit_protocol_range", mit_protocol_range),
         ("shm.mit_command", shm_mit_command),
         ("shm.operator_command", shm_operator_command),
         ("shm.control_state", shm_control_state),
@@ -67,14 +59,6 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
         ("can.imu.request_all_each_tick", can_imu["request_all_each_tick"]),
         ("can.imu.startup_request_count", can_imu["startup_request_count"]),
         ("can.imu.startup_request_delay_s", can_imu["startup_request_delay_s"]),
-        ("can.mit_protocol_range.position_rad", mit_protocol_range["position_rad"]),
-        ("can.mit_protocol_range.velocity_rad_s", mit_protocol_range["velocity_rad_s"]),
-        ("can.mit_protocol_range.kp", mit_protocol_range["kp"]),
-        ("can.mit_protocol_range.kd", mit_protocol_range["kd"]),
-        ("can.mit_protocol_range.torque_ff_nm", mit_protocol_range["torque_ff_nm"]),
-        ("can.mit_protocol_range.feedback_position_rad", mit_protocol_range["feedback_position_rad"]),
-        ("hardware.can.drivers.spg_mit.iq_full_scale_count", spg_mit["iq_full_scale_count"]),
-        ("hardware.can.drivers.spg_mit.iq_full_scale_current_a", spg_mit["iq_full_scale_current_a"]),
         ("shm.mit_command.name", shm_mit_command["name"]),
         ("shm.operator_command.name", shm_operator_command["name"]),
         ("shm.control_state.name", shm_control_state["name"]),
@@ -104,7 +88,6 @@ def validate_robot_controller_config(config: Mapping[str, Any]) -> None:
 
     for name, value in (
         ("can.command_timeout_s", can["command_timeout_s"]),
-        ("hardware.can.drivers.spg_mit.iq_full_scale_count", spg_mit["iq_full_scale_count"]),
         ("shm.control_state.publish_hz", shm_control_state["publish_hz"]),
         ("shm.dashboard_state.publish_hz", shm_dashboard_state["publish_hz"]),
         ("robot_controller.control_hz", robot_controller["control_hz"]),

@@ -12,8 +12,12 @@ from ..hal.can.frame import CANFrame
 from qhrr0.hardware.actuator.hardware import ActuatorHardware
 from qhrr0.hardware.imu.hardware import IMUHardware
 
-from qhrr0.hardware.driver.actuators import SPGActuatorProtocol, SPGMITConfig
-from qhrr0.hardware.driver.imu import E2BoxIMUProtocol
+from qhrr0.hardware.driver import (
+    E2BoxIMUProtocol,
+    SPGActuatorProtocol,
+    SPG_IQ_COUNT_TO_AMP,
+    SPG_MIT_DEFAULT_CONFIG,
+)
 from hw_driver.robot_spec import QHRR0RobotSpec, robot_spec_from_config
 
 from qhrr0.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
@@ -73,26 +77,16 @@ class RobotController:
 
         ################################################################
         #actuator bring up
-        protocol_range = self.config["can"]["mit_protocol_range"]
-        spg = self.config["hardware"]["can"]["drivers"]["spg_mit"]
-        mit_config = SPGMITConfig(
-            p_max=float(protocol_range["position_rad"]),
-            v_max=float(protocol_range["velocity_rad_s"]),
-            kp_max=float(protocol_range["kp"]),
-            kd_max=float(protocol_range["kd"]),
-            tau_max=float(protocol_range["torque_ff_nm"]),
-            feedback_position_max=float(protocol_range["feedback_position_rad"]),
-        )
         self.actuators = {
             spec.can_id: ActuatorHardware(
                 name=spec.name,
                 driver=SPGActuatorProtocol(
                     command_id=spec.can_id,
                     feedback_id=spec.can_id,
-                    mit_config=mit_config,
+                    mit_config=SPG_MIT_DEFAULT_CONFIG,
                     expose_single_turn_position=True,
                     feedback_speed_is_motor_side=True,
-                    iq_count_to_amp=float(spg["iq_full_scale_current_a"])/float(spg["iq_full_scale_count"]),
+                    iq_count_to_amp=SPG_IQ_COUNT_TO_AMP,
                 ),
                 feedback_timeout_s=float(self.config["can"]["command_timeout_s"]),
             )
