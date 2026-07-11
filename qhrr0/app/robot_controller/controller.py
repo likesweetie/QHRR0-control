@@ -6,18 +6,17 @@ import time
 
 from enum import IntEnum
 
-from hal.can_bus.process_transport import CANProcessTransport
-from hal.hardware.can.actuator.driver import ActuatorDriver
-from hal.hardware.can.imu.driver import IMUDriver
+from robot.app.hal.can_bus.process_transport import CANProcessTransport
+from robot.app.hal.hardware.can.actuator.driver import ActuatorDriver
+from robot.app.hal.hardware.can.imu.driver import IMUDriver
 
-from qhrr0_hw.actuators import SPGMITConfig, create_spg_actuator_driver
-from qhrr0_hw.imu import E2BoxIMUProtocol
-from qhrr0_hw.robot_spec import QHRR0RobotSpec, robot_spec_from_config
+from robot.app.hal.driver.actuators import SPGMITConfig, create_spg_actuator_driver
+from robot.app.hal.driver.imu import E2BoxIMUProtocol
+from hw_driver.robot_spec import QHRR0RobotSpec, robot_spec_from_config
 
-from robot_controller.config import RobotControllerConfig
-from robot_controller.state_machine import ControllerMode, ControlModeFsm
-from robot_controller.process_supervisor import ProcessSupervisor
-from robot_controller.shm.manager import ShmManager
+from robot.app.robot_controller.state_machine import ControllerMode, ControlModeFsm
+from robot.app.robot_controller.process_supervisor import ProcessSupervisor
+from robot.app.robot_controller.shm.manager import ShmManager
 from robot_controller.shm import (
     COMMAND_OUTPUT_SOURCE_VALUES,
     MAX_ROBOT_STATE_ACTUATORS,
@@ -35,6 +34,7 @@ from robot_controller.shm import (
 
 logger = logging.getLogger(__name__)
 
+
 class RuntimePhase(IntEnum):
     UNKNOWN = 0
     CREATED = 1
@@ -49,54 +49,41 @@ class RuntimePhase(IntEnum):
 
 
 class RobotController:
-    def __init__(self, config: RobotControllerConfig):
+    def __init__(self, config: dict):
         self._runtime_phase = RuntimePhase.CREATED
 
         self.config = config
 
         self.robot_spec: QHRR0RobotSpec = robot_spec_from_config(
-            config.robot_platform,
-            config.can_device,
+            config["robot_platform"],
+            config["can_device"],
         )
 
+        can_daemon_config = config["can"]["daemon"]
         self.can = CANProcessTransport(
-            socket_path=config.can.daemon.ipc_socket_path,
-            connect_timeout_s=config.can.daemon.connect_timeout_s,
+            socket_path=str(can_daemon_config["ipc_socket_path"]),
+            connect_timeout_s=float(can_daemon_config["connect_timeout_s"]),
         )
 
         ################################################################
         #actuator bring up
-        protocol_range = self.config.can.mit_protocol_range
-        spg = self.config.can_device.drivers["spg_mit"]
-        iq_full_scale_count = float(spg.iq_full_scale_count)
-        if iq_full_scale_count <= 0.0:
-            raise ValueError("spg_mit.iq_full_scale_count must be positive")
-        iq_count_to_amp = (
-            float(spg.iq_full_scale_current_a)
-            / iq_full_scale_count
-        )
-        unsupported_drivers = {
-            spec.driver
-            for spec in self.robot_spec.actuators
-            if spec.driver != "spg_mit"
-        }
-        if unsupported_drivers:
-            raise ValueError(f"Unsupported actuator drivers: {sorted(unsupported_drivers)}")
+        protocol_range = self.config["can"]["mit_protocol_range"]
+        spg = self.config["can_device"]["drivers"]["spg_mit"]
         mit_config = SPGMITConfig(
-            p_max=protocol_range.position_rad,
-            v_max=protocol_range.velocity_rad_s,
-            kp_max=protocol_range.kp,
-            kd_max=protocol_range.kd,
-            tau_max=protocol_range.torque_ff_nm,
-            feedback_position_max=protocol_range.feedback_position_rad,
+            p_max=float(protocol_range["position_rad"]),
+            v_max=float(protocol_range["velocity_rad_s"]),
+            kp_max=float(protocol_range["kp"]),
+            kd_max=float(protocol_range["kd"]),
+            tau_max=float(protocol_range["torque_ff_nm"]),
+            feedback_position_max=float(protocol_range["feedback_position_rad"]),
         )
         self.actuators = {
             spec.can_id: create_spg_actuator_driver(
                 spec,
                 mit_config=mit_config,
-                feedback_timeout_s=self.config.can.command_timeout_s,
+                feedback_timeout_s=float(self.config["can"]["command_timeout_s"]),
                 feedback_speed_is_motor_side=True,
-                iq_count_to_amp=iq_count_to_amp,
+                iq_count_to_amp=float(spg["iq_full_scale_current_a"])/float(spg["iq_full_scale_count"]),
             )
             for spec in self.robot_spec.actuators
         }
@@ -118,14 +105,14 @@ class RobotController:
                 gyro_scale=spec.gyro_scale,
                 normalize_quat=spec.normalize_quat,
             ),
-            quat_timeout=self.config.can.command_timeout_s,
-            gyro_timeout=self.config.can.command_timeout_s,
+            quat_timeout=float(self.config["can"]["command_timeout_s"]),
+            gyro_timeout=float(self.config["can"]["command_timeout_s"]),
         )
         ################################################################
 
         ################################################################
         #shm bring up
-        self.shm_manager = ShmManager(config.shm)
+        self.shm_manager = ShmManager(config["shm"])
         self.control_cmd_shm: ControlCommandShm | None = None
         self.operator_cmd_shm: OperatorCommandShm | None = None
         self.control_state_shm: RobotStateShm | None = None
@@ -133,16 +120,16 @@ class RobotController:
         ################################################################
 
         self.state_machine = ControlModeFsm(
-            enable_duration_s=config.state_machine.enable_duration_s,
+            enable_duration_s=float(config["state_machine"]["enable_duration_s"]),
         )
-        self.processes_supervisor = ProcessSupervisor(config.processes)
+        self.processes_supervisor = ProcessSupervisor(config["processes"])
 
 
         self._last_output_source = "NONE"
         self._last_output_t = 0.0
         self._last_output_targets: tuple[CommandTargetStateC, ...] = ()
-        self._control_state_publish_period_s = 1.0 / float(config.shm.control_state.publish_hz)
-        self._dashboard_state_publish_period_s = 1.0 / float(config.shm.dashboard_state.publish_hz)
+        self._control_state_publish_period_s = 1.0 / float(config["shm"]["control_state"]["publish_hz"])
+        self._dashboard_state_publish_period_s = 1.0 / float(config["shm"]["dashboard_state"]["publish_hz"])
         self._last_control_state_publish_t = 0.0
         self._last_dashboard_state_publish_t = 0.0
         self._last_consumed_operator_timestamp_ns: int | None = None
@@ -155,10 +142,10 @@ class RobotController:
             self.runtime_phase = RuntimePhase.INIT_SHM
             self.shm_manager.cleanup_stale()
             self.shm_manager.create_all()
-            self.control_cmd_shm = ControlCommandShm.open(self.config.shm.mit_command.name)
-            self.operator_cmd_shm = OperatorCommandShm.open(self.config.shm.operator_command.name)
-            self.control_state_shm = RobotStateShm.open(self.config.shm.control_state.name)
-            self.dashboard_state_shm = RobotStateShm.open(self.config.shm.dashboard_state.name)
+            self.control_cmd_shm = ControlCommandShm.open(self.config["shm"]["mit_command"]["name"])
+            self.operator_cmd_shm = OperatorCommandShm.open(self.config["shm"]["operator_command"]["name"])
+            self.control_state_shm = RobotStateShm.open(self.config["shm"]["control_state"]["name"])
+            self.dashboard_state_shm = RobotStateShm.open(self.config["shm"]["dashboard_state"]["name"])
 
             self.runtime_phase = RuntimePhase.START_CAN_DAEMON
             self.processes_supervisor.start_by_name("can_daemon")
@@ -167,10 +154,10 @@ class RobotController:
 
             #bringup_imu()
             self.runtime_phase = RuntimePhase.BRINGUP_IMU
-            if (self.config.can.imu.enabled) and (self.config.can.imu.request_all_on_start):
-                for _ in range(int(self.config.can.imu.startup_request_count)):
+            if self.config["can"]["imu"]["enabled"] and self.config["can"]["imu"]["request_all_on_start"]:
+                for _ in range(int(self.config["can"]["imu"]["startup_request_count"])):
                     self.can.send_frame(self.imu.make_request_all_frame())
-                    time.sleep(self.config.can.imu.startup_request_delay_s)
+                    time.sleep(float(self.config["can"]["imu"]["startup_request_delay_s"]))
 
             self.runtime_phase = RuntimePhase.START_CHILD_PROCESSES
             self.processes_supervisor.start_all()
@@ -185,7 +172,7 @@ class RobotController:
             raise
 
     def run(self) -> None:
-        control_period_s = 1.0 / float(self.config.robot_controller.control_hz)
+        control_period_s = 1.0 / float(self.config["robot_controller"]["control_hz"])
         next_t = time.perf_counter()
         while self._running:
             now = time.perf_counter()
@@ -203,7 +190,7 @@ class RobotController:
         now = time.monotonic()
         
         #sending request imu data
-        if self.config.can.imu.enabled and self.config.can.imu.request_all_each_tick:
+        if self.config["can"]["imu"]["enabled"] and self.config["can"]["imu"]["request_all_each_tick"]:
             self.can.send_frame(self.imu.make_request_all_frame())
 
         assert self.operator_cmd_shm is not None
@@ -241,7 +228,7 @@ class RobotController:
             case ControllerMode.NORMAL:
                 assert self.control_cmd_shm is not None
                 cmd = self.control_cmd_shm.read_relaxed()
-                self._send_policy_command(cmd)
+                self._send_mit_command(cmd)
                 return self._publish_state()
             
             case _:
@@ -263,7 +250,7 @@ class RobotController:
                     self.can.send_frame(actuator.make_disable_frame())
         except Exception as exc:
             logger.warning("Actuator shutdown warning: %s", exc)
-        self.processes_supervisor.stop_all(self.config.robot_controller.shutdown_timeout_s)
+        self.processes_supervisor.stop_all(float(self.config["robot_controller"]["shutdown_timeout_s"]))
         self._publish_state(force=True)
 
         #close_runtime
@@ -280,7 +267,6 @@ class RobotController:
 
         self.shm_manager.unlink_all()
         self.runtime_phase = RuntimePhase.STOPPED
-
 
     def _register_callbacks(self) -> None:
         for driver in self.actuators.values():
@@ -363,7 +349,7 @@ class RobotController:
 
 
     def _send_damping_all(self) -> None:
-        kd = float(self.config.safety.velocity_damping_kd)
+        kd = float(self.config["safety"]["velocity_damping_kd"])
         targets = tuple(
             _command_target_state(
                 can_id=can_id,
@@ -388,7 +374,7 @@ class RobotController:
                 )
             )
 
-    def _send_policy_command(self, cmd: ControlCommandC) -> None:
+    def _send_mit_command(self, cmd: ControlCommandC) -> None:
         n = min(int(cmd.num_targets), len(cmd.targets))
         targets: list[CommandTargetStateC] = []
         for index in range(n):
@@ -414,7 +400,7 @@ class RobotController:
                     torque_ff_nm=command_target.tau_target_nm,
                 )
             )
-        self._record_output_command("POLICY", tuple(targets))
+        self._record_output_command("MIT", tuple(targets))
 
     def _record_output_command(
         self,
@@ -455,21 +441,10 @@ class RobotController:
         robot_state.controller_mode = int(self.state_machine.mode)
         robot_state.actuator_count = min(len(self.actuators), MAX_ROBOT_STATE_ACTUATORS)
 
-        _fill_float_array(
-            robot_state.imu.quat_wxyz,
-            _quat_xyzw_to_wxyz(imu_state.quat_xyzw),
-            (1.0, 0.0, 0.0, 0.0),
-        )
-        _fill_float_array(
-            robot_state.imu.projected_gravity_b,
-            getattr(imu_state, "projected_gravity_b", None),
-            (0.0, 0.0, -1.0),
-        )
-        _fill_float_array(
-            robot_state.imu.angular_velocity_rad_s,
-            imu_state.angular_velocity_rad_s,
-            (0.0, 0.0, 0.0),
-        )
+        robot_state.imu.quat_wxyz = _quat_xyzw_to_wxyz(imu_state.quat_xyzw),
+        robot_state.imu.projected_gravity_b = getattr(imu_state, "projected_gravity_b", None),
+        robot_state.imu.angular_velocity_rad_s = imu_state.angular_velocity_rad_s,
+
         robot_state.imu.last_quat_t = float(imu_state.last_quat_t)
         robot_state.imu.last_gyro_t = float(imu_state.last_gyro_t)
         robot_state.imu.quat_online = int(bool(imu_comm["quat"].is_online))
@@ -489,11 +464,11 @@ class RobotController:
             )
             out = robot_state.actuators[index]
             out.can_id = int(can_id)
-            out.position_rad = _float_or_zero(actuator_state.position_rad)
-            out.velocity_rad_s = _float_or_zero(actuator_state.velocity_rad_s)
-            out.torque_nm = _float_or_zero(actuator_state.torque_nm)
-            out.current_a = _float_or_zero(actuator_state.current_a)
-            out.temperature_c = _float_or_zero(actuator_state.temperature_c)
+            out.position_rad = actuator_state.position_rad
+            out.velocity_rad_s = actuator_state.velocity_rad_s
+            out.torque_nm = actuator_state.torque_nm
+            out.current_a = actuator_state.current_a
+            out.temperature_c = actuator_state.temperature_c
             out.fault_code = -1 if actuator_state.fault_code is None else int(actuator_state.fault_code)
             out.is_enabled = -1 if actuator_state.is_enabled is None else int(bool(actuator_state.is_enabled))
             out.last_feedback_t = float(actuator_state.last_feedback_t)
@@ -508,11 +483,11 @@ class RobotController:
         for index, item in enumerate(self._last_output_targets[:MAX_ROBOT_STATE_ACTUATORS]):
             out = command_output.targets[index]
             out.can_id = int(item.can_id)
-            out.p_target_rad = _float_or_zero(item.p_target_rad)
-            out.v_target_rad_s = _float_or_zero(item.v_target_rad_s)
-            out.kp = _float_or_zero(item.kp)
-            out.kd = _float_or_zero(item.kd)
-            out.tau_target_nm = _float_or_zero(item.tau_target_nm)
+            out.p_target_rad = item.p_target_rad
+            out.v_target_rad_s = item.v_target_rad_s
+            out.kp = item.kp
+            out.kd = item.kd
+            out.tau_target_nm = item.tau_target_nm
 
         return robot_state
 
@@ -564,15 +539,3 @@ def _command_target_state(
     target.kd = float(kd)
     target.tau_target_nm = float(tau_target_nm)
     return target
-
-
-def _fill_float_array(target, values, fallback) -> None:
-    source = fallback if values is None else values
-    for index, value in enumerate(source):
-        target[index] = float(value)
-
-
-def _float_or_zero(value: float | None) -> float:
-    if value is None or not math.isfinite(float(value)):
-        return 0.0
-    return float(value)

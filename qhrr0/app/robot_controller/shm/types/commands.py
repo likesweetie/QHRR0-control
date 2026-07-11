@@ -4,8 +4,8 @@ import ctypes
 
 from enum import IntEnum
 
-from robot_controller.shm.types.cstruct_type import CStructShm
-from .consts import *
+from .cstruct_type import CStructShm
+from ..helper.consts import MAX_ROBOT_ACTUATORS
 
 class OperatorCommandCode(IntEnum):
     NONE = 0

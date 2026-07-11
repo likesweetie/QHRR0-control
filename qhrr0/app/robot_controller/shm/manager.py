@@ -1,16 +1,26 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from multiprocessing import shared_memory
+from typing import Any
 
-from robot_controller.shm.config import ShmConfig
-from robot_controller.shm.types.aux_command import AuxCommandShm
-from robot_controller.shm.types.control_command import ControlCommandShm
-from robot_controller.shm.types.operator_command import OperatorCommandShm
-from robot_controller.shm.types.robot_state import RobotStateShm
+from ...helper.config_manage import validate_shm_config
+from .types.commands import AuxCommandShm, ControlCommandShm, OperatorCommandShm
+from .types.robot_state import RobotStateShm
+
+
+_SHM_SEGMENTS = (
+    ("mit_command", ControlCommandShm, False),
+    ("aux_command", AuxCommandShm, True),
+    ("operator_command", OperatorCommandShm, True),
+    ("control_state", RobotStateShm, True),
+    ("dashboard_state", RobotStateShm, True),
+)
 
 
 class ShmManager:
-    def __init__(self, config: ShmConfig):
+    def __init__(self, config: Mapping[str, Any]):
+        validate_shm_config(config)
         self.config = config
         self._segments: dict[str, shared_memory.SharedMemory] = {}
 
@@ -24,32 +34,17 @@ class ShmManager:
             stale.unlink()
 
     def create_all(self) -> None:
-        control_command = ControlCommandShm.create(self.config.mit_command.name)
-        self._segments[self.config.mit_command.name] = control_command.shm
-
-        aux_command = AuxCommandShm.create(
-            self.config.aux_command.name,
-            size=int(self.config.aux_command.size_bytes),
-        )
-        self._segments[self.config.aux_command.name] = aux_command.shm
-
-        operator_command = OperatorCommandShm.create(
-            self.config.operator_command.name,
-            size=int(self.config.operator_command.size_bytes),
-        )
-        self._segments[self.config.operator_command.name] = operator_command.shm
-
-        control_state = RobotStateShm.create(
-            name=self.config.control_state.name,
-            size=int(self.config.control_state.size_bytes),
-        )
-        self._segments[self.config.control_state.name] = control_state.shm
-
-        dashboard_state = RobotStateShm.create(
-            name=self.config.dashboard_state.name,
-            size=int(self.config.dashboard_state.size_bytes),
-        )
-        self._segments[self.config.dashboard_state.name] = dashboard_state.shm
+        for config_key, shm_type, has_configured_size in _SHM_SEGMENTS:
+            segment_config = self.config[config_key]
+            name = str(segment_config["name"])
+            if has_configured_size:
+                segment = shm_type.create(
+                    name=name,
+                    size=int(segment_config["size_bytes"]),
+                )
+            else:
+                segment = shm_type.create(name=name)
+            self._segments[name] = segment.shm
 
     def close_all(self) -> None:
         for segment in self._segments.values():
@@ -66,10 +61,7 @@ class ShmManager:
             segment.unlink()
 
     def _segment_names(self) -> tuple[str, ...]:
-        return (
-            self.config.mit_command.name,
-            self.config.aux_command.name,
-            self.config.operator_command.name,
-            self.config.control_state.name,
-            self.config.dashboard_state.name,
+        return tuple(
+            str(self.config[config_key]["name"])
+            for config_key, _shm_type, _has_configured_size in _SHM_SEGMENTS
         )

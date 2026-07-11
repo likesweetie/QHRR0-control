@@ -3,9 +3,9 @@ from __future__ import annotations
 import ctypes
 import time
 
-from robot_controller.shm.types.cstruct_type import CStructShm
+from .cstruct_type import CStructShm
 
-from .consts import *
+from ..helper.consts import MAX_ROBOT_ACTUATORS
 
 COMMAND_OUTPUT_SOURCE_NAMES = {
     0: "NONE",

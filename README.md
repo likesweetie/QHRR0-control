@@ -42,7 +42,7 @@ python3 run_mujoco_simulation.py
 
 ```bash
 python3 -m robot_controller.main --config config/app_config/robot_controller.yaml
-python3 -m robot_controller.subprocesses.can_daemon.main --config-key robot_controller --replace-existing-socket
+python3 -m robot_controller.subprocesses.can_daemon.main
 python3 -m robot_controller.subprocesses.task_controller.main --help
 python3 run_mujoco_simulation.py --help
 candump -td vcan0

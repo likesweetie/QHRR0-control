@@ -1,0 +1,8 @@
+  daemon:
+    rx_timeout_s: 0.001
+    tx_timeout_s: 0.001
+    join_timeout_s: 1.0
+    max_tx_queue_size: 4096
+    send_block: false
+    send_timeout_s: null
+    connect_timeout_s: 5.0

@@ -4,10 +4,8 @@
 # Other YAML files should not contain paths to sibling config files.
 
 app:
-  robot_controller: "config/app_config/robot_controller.yaml"
-  processes: "config/app_config/processes.yaml"
-  dashboard: "config/app_config/dashboard.yaml"
-  mujoco: "config/app_config/mujoco.yaml"
+  robot_controller: "config/app_config/robot_controller_config.yaml"
+  subprocesses : "config/app_config/subprocesses.yaml
 
 robot:
   can_device: "config/robot_config/can_device_config.yaml"

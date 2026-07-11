@@ -6,12 +6,13 @@ import signal
 import shlex
 import subprocess
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
-from .config import ProcessConfig
+from ...helper.config_manage import validate_process_supervisor_config
 
 
 logger = logging.getLogger(__name__)
@@ -54,10 +55,10 @@ class ProcessStatus:
 
 
 class ManagedProcess:
-    def __init__(self, config: ProcessConfig, pid_dir: Path, log_dir: Path):
+    def __init__(self, config: Mapping[str, Any], pid_dir: Path, log_dir: Path):
         self.config = config
-        self.pidfile = pid_dir / f"{config.name}{PID_FILE_SUFFIX}"
-        self.log_file = log_dir / f"{config.name}{LOG_FILE_SUFFIX}"
+        self.pidfile = pid_dir / f"{config['name']}{PID_FILE_SUFFIX}"
+        self.log_file = log_dir / f"{config['name']}{LOG_FILE_SUFFIX}"
         self.process: subprocess.Popen | None = None
         self._log_handle: BinaryIO | None = None
 
@@ -67,8 +68,8 @@ class ManagedProcess:
 
         self._close_log_handle()
 
-        if not self.config.command:
-            raise ValueError(f"Process {self.config.name} has empty command")
+        if not self.config["command"]:
+            raise ValueError(f"Process {self.config['name']} has empty command")
 
         self.pidfile.parent.mkdir(parents=True, exist_ok=True)
 
@@ -78,7 +79,7 @@ class ManagedProcess:
         stdout = None
         stderr = None
 
-        if not self.config.new_terminal:
+        if not self.config["new_terminal"]:
             self._log_handle = self.log_file.open(
                 LOG_OPEN_MODE,
                 buffering=LOG_BUFFERING,
@@ -89,7 +90,7 @@ class ManagedProcess:
         try:
             self.process = subprocess.Popen(
                 self._launch_command(),
-                cwd=self.config.working_dir,
+                cwd=self.config["working_dir"],
                 env=self._process_env(),
                 stdout=stdout,
                 stderr=stderr,
@@ -125,7 +126,7 @@ class ManagedProcess:
                 except subprocess.TimeoutExpired:
                     logger.warning(
                         "Killing process %s after stop timeout %.3fs",
-                        self.config.name,
+                        self.config["name"],
                         timeout_s,
                     )
 
@@ -138,7 +139,7 @@ class ManagedProcess:
             elif managed_pid is not None and self._pid_is_running(managed_pid):
                 logger.warning(
                     "Killing managed process %s after stop timeout %.3fs",
-                    self.config.name,
+                    self.config["name"],
                     timeout_s,
                 )
                 self._terminate_pid(managed_pid, signal.SIGKILL)
@@ -161,7 +162,7 @@ class ManagedProcess:
         managed_pid = self._read_pidfile()
 
         return ProcessStatus(
-            name=self.config.name,
+            name=self.config["name"],
             alive=process_alive or (
                 managed_pid is not None and self._pid_is_running(managed_pid)
             ),
@@ -172,13 +173,13 @@ class ManagedProcess:
         )
 
     def _launch_command(self) -> list[str]:
-        if not self.config.new_terminal:
-            return list(self.config.command)
+        if not self.config["new_terminal"]:
+            return list(self.config["command"])
 
-        if not self.config.terminal_command:
-            raise ValueError(f"Process {self.config.name} requires terminal_command")
+        if not self.config["terminal_command"]:
+            raise ValueError(f"Process {self.config['name']} requires terminal_command")
 
-        workdir = Path(self.config.working_dir).resolve()
+        workdir = Path(self.config["working_dir"]).resolve()
 
         pidfile_part = (
             f"printf '%s\\n' \"$$\" > {shlex.quote(str(self.pidfile))} && "
@@ -194,10 +195,10 @@ class ManagedProcess:
             f"cd {shlex.quote(str(workdir))} && "
             f"{pidfile_part}"
             f"{log_part}"
-            f"exec {shlex.join(self.config.command)}"
+            f"exec {shlex.join(self.config['command'])}"
         )
 
-        return list(self.config.terminal_command) + [
+        return list(self.config["terminal_command"]) + [
             SHELL_EXECUTABLE,
             SHELL_EXEC_FLAG,
             shell_command,
@@ -205,7 +206,7 @@ class ManagedProcess:
 
     def _process_env(self) -> dict[str, str]:
         env = dict(os.environ)
-        env.update(self.config.env_vars)
+        env.update(self.config["env_vars"])
         return env
 
     def _read_pidfile(self) -> int | None:
@@ -291,7 +292,8 @@ class ManagedProcess:
 
 
 class ProcessSupervisor:
-    def __init__(self, process_configs: list[ProcessConfig]):
+    def __init__(self, process_configs: Sequence[Mapping[str, Any]]):
+        validate_process_supervisor_config(process_configs)
         self.pid_dir = PID_DIR
         self.log_dir = (
             Path.cwd()
@@ -301,7 +303,7 @@ class ProcessSupervisor:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         self._processes: dict[str, ManagedProcess] = {
-            config.name: ManagedProcess(
+            config["name"]: ManagedProcess(
                 config=config,
                 pid_dir=self.pid_dir,
                 log_dir=self.log_dir,
@@ -310,7 +312,7 @@ class ProcessSupervisor:
         }
 
     @property
-    def process_configs(self) -> dict[str, ProcessConfig]:
+    def process_configs(self) -> dict[str, Mapping[str, Any]]:
         return {
             name: process.config
             for name, process in self._processes.items()
@@ -337,14 +339,14 @@ class ProcessSupervisor:
     def start_all(self) -> None:
         for process in sorted(
             self._processes.values(),
-            key=lambda item: item.config.start_order,
+            key=lambda item: int(item.config["start_order"]),
         ):
             process.start()
 
     def stop_all(self, timeout_s: float = DEFAULT_STOP_TIMEOUT_S) -> None:
         for process in sorted(
             self._processes.values(),
-            key=lambda item: item.config.stop_order,
+            key=lambda item: int(item.config["stop_order"]),
         ):
             process.stop(timeout_s=timeout_s)
 
@@ -357,7 +359,7 @@ class ProcessSupervisor:
     def status(self) -> dict[str, dict[str, object]]:
         return {
             name: {
-                "config": asdict(process.config),
+                "config": dict(process.config),
                 **asdict(process.health),
             }
             for name, process in self._processes.items()

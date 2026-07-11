@@ -41,3 +41,9 @@ actuators:
 
 assets:
   mujoco_model_path: "third_party/mujoco/model/one_leg_v2/qhrr0_environment.xml"
+
+
+mujoco_warpper:
+  imu_sensors:
+    quat_sensor_name: "imu_quat"
+    gyro_sensor_name: "imu_gyro"

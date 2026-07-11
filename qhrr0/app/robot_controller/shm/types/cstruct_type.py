@@ -4,7 +4,7 @@ import ctypes
 from multiprocessing import shared_memory
 from typing import Any, ClassVar, Generic, Mapping, TypeVar
 
-from robot_controller.shm.buffer import BufferBackend, PlainBuffer
+from ..helper.buffer import BufferBackend, PlainBuffer
 
 
 CT = TypeVar("CT", bound=ctypes.Structure)

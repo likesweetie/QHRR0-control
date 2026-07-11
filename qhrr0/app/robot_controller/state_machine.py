@@ -46,8 +46,6 @@ class ControlModeFsm:
     mode_enter_time: float = 0.0
 
     def __post_init__(self) -> None:
-        if self.enable_duration_s < 0.0:
-            raise ValueError("enable_duration_s must be >= 0")
         if self.mode_enter_time <= 0.0:
             self.mode_enter_time = time.monotonic()
 
