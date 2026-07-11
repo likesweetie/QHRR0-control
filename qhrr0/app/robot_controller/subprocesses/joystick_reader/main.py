@@ -8,9 +8,15 @@ import struct
 import time
 from pathlib import Path
 
-from robot_controller.config import load_robot_controller_config, resolve_config_arg
-from robot_controller.shm.types.aux_command import AuxCommandC, AuxCommandShm
-from robot_controller.subprocesses.aux_buttons import buttons_to_mask
+import yaml
+
+from qhrr0.app.robot_controller.shm import AuxCommandC, AuxCommandShm
+from qhrr0.app.robot_controller.subprocesses.joystick_reader.joystick_buttons import buttons_to_mask
+
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[4]
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
+CONFIG_PATHS_PATH = PACKAGE_ROOT / "config" / "config_paths.yaml"
 
 
 JS_EVENT_BUTTON = 0x01
@@ -24,7 +30,7 @@ RUNNING = True
 
 def _handle_signal(signum: int, _frame) -> None:
     global RUNNING
-    print(f"[aux_reader] signal {signum}, shutting down", flush=True)
+    print(f"[joystick_reader] signal {signum}, shutting down", flush=True)
     RUNNING = False
 
 
@@ -84,7 +90,7 @@ def _publish(writer: AuxCommandShm, axes: list[float], buttons: list[bool]) -> N
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="QHRR MuJoCo joystick auxiliary reader")
+    parser = argparse.ArgumentParser(description="QHRR joystick reader")
     parser.add_argument("--controller-config", type=Path, default=None)
     parser.add_argument("--controller-config-key", default=os.environ.get("ROBOT_CONTROLLER_CONFIG_KEY", "robot_controller"))
     parser.add_argument("--joystick-dev", default=os.environ.get("JOYSTICK_DEV", "/dev/input/js0"))
@@ -92,28 +98,45 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _load_yaml_mapping(path: Path) -> dict:
+    with path.open("r", encoding="utf-8") as fp:
+        loaded = yaml.safe_load(fp)
+    if not isinstance(loaded, dict):
+        raise ValueError(f"YAML file must contain a mapping: {path}")
+    return loaded
+
+
+def _resolve_controller_config_path(explicit_path: Path | None, key: str) -> Path:
+    if explicit_path is not None:
+        return explicit_path if explicit_path.is_absolute() else PROJECT_ROOT / explicit_path
+
+    config_paths = _load_yaml_mapping(CONFIG_PATHS_PATH)
+    app_paths = config_paths["app"]
+    if not isinstance(app_paths, dict):
+        raise TypeError("config_paths.app must be a mapping")
+    config_path = Path(str(app_paths[key]))
+    return config_path if config_path.is_absolute() else PACKAGE_ROOT / config_path
+
+
 def main() -> int:
     args = parse_args()
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    config_path = resolve_config_arg(
-        args.controller_config,
-        args.controller_config_key,
-        default_key="robot_controller",
-    )
-    config = load_robot_controller_config(config_path)
-    writer = AuxCommandShm.open(config.shm.aux_command.name)
-    print(f"[aux_reader] publishing aux command shm: {config.shm.aux_command.name}", flush=True)
+    config_path = _resolve_controller_config_path(args.controller_config, args.controller_config_key)
+    config = _load_yaml_mapping(config_path)
+    aux_shm_name = str(config["shm"]["aux_command"]["name"])
+    writer = AuxCommandShm.open(aux_shm_name)
+    print(f"[joystick_reader] publishing aux command shm: {aux_shm_name}", flush=True)
 
     fd = os.open(args.joystick_dev, os.O_RDONLY | os.O_NONBLOCK)
-    print(f"[aux_reader] joystick device: {args.joystick_dev}", flush=True)
+    print(f"[joystick_reader] joystick device: {args.joystick_dev}", flush=True)
 
     axes = [0.0] * 32
     buttons = [False] * 32
     try:
         _publish(writer, axes, buttons)
-        print("[aux_reader] published neutral aux command", flush=True)
+        print("[joystick_reader] published neutral aux command", flush=True)
 
         while RUNNING:
             try:

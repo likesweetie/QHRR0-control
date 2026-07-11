@@ -24,7 +24,7 @@ from robot_controller.shm.types.control_command import (
     ControlCommandShm,
 )
 from robot_controller.shm.types.robot_state import RobotStateShm
-from robot_controller.subprocesses.aux_buttons import mask_to_buttons
+from qhrr0.app.robot_controller.subprocesses.joystick_reader.joystick_buttons import mask_to_buttons
 
 
 RUNNING = True
@@ -130,7 +130,7 @@ def main() -> int:
     can_ids = [int(can_id) for can_id in controller_config.can.motors.can_ids]
 
     control_state_reader = RobotStateShm.open(controller_config.shm.control_state.name)
-    aux_reader = AuxCommandShm.open(controller_config.shm.aux_command.name)
+    joystick_reader = AuxCommandShm.open(controller_config.shm.aux_command.name)
     control_command_writer = ControlCommandShm.open(controller_config.shm.mit_command.name)
     print(
         f"[task_controller] control={controller_config.shm.control_state.name} "
@@ -175,10 +175,10 @@ def main() -> int:
                 _sleep_until_next_tick(tick_start, period_s)
                 continue
 
-            aux_state = aux_reader.read_relaxed()
-            lin_vel = [float(value) for value in aux_state.lin_vel_target]
-            ang_vel_cmd = [float(value) for value in aux_state.ang_vel_target]
-            buttons = mask_to_buttons(int(aux_state.button_mask))
+            joystick_state = joystick_reader.read_relaxed()
+            lin_vel = [float(value) for value in joystick_state.lin_vel_target]
+            ang_vel_cmd = [float(value) for value in joystick_state.ang_vel_target]
+            buttons = mask_to_buttons(int(joystick_state.button_mask))
 
             actuators = {int(item.can_id): item for item in control_state.valid_actuators()}
             dof_pos = np.asarray(
@@ -223,7 +223,7 @@ def main() -> int:
             _sleep_until_next_tick(tick_start, period_s)
     finally:
         control_state_reader.close()
-        aux_reader.close()
+        joystick_reader.close()
         control_command_writer.close()
     return 0
 

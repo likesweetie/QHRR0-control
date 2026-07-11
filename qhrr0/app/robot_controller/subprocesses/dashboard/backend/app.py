@@ -22,7 +22,7 @@ from robot_controller.config import load_config_paths, load_robot_controller_con
 from robot_controller.config.loader import load_yaml_mapping
 from qhrr0.app.robot_controller.subprocesses.process_supervisor import ProcessSupervisor
 from qhrr0.app.robot_controller.can_client import CANClient
-from qhrr0.hardware.driver import (
+from qhrr0.device.driver import (
     E2BOX_GYRO_ID,
     E2BOX_GYRO_SCALE,
     E2BOX_NORMALIZE_QUAT,

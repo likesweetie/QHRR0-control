@@ -8,8 +8,8 @@ import time
 from collections import deque
 from collections.abc import Callable
 
-from ..hal.can.dispatcher import CANDispatcher
-from ..hal.can.frame import CANFrame
+from qhrr0.app.hal.can.dispatcher import CANDispatcher
+from qhrr0.app.hal.can.frame import CANFrame
 
 
 CAN_SFF_MASK = 0x7FF

@@ -7,12 +7,12 @@ import time
 from collections.abc import Mapping, Sequence
 from enum import IntEnum
 
-from .can_client import CANClient
+from qhrr0.app.robot_controller.hardware_interfaces.can_client import CANClient
 from ..hal.can.frame import CANFrame
-from qhrr0.hardware.actuator.hardware import ActuatorHardware
-from qhrr0.hardware.imu.hardware import IMUHardware
+from qhrr0.device.actuator.hardware import ActuatorHardware
+from qhrr0.device.imu.hardware import IMUHardware
 
-from qhrr0.hardware.driver import (
+from qhrr0.device.driver import (
     E2BoxIMUProtocol,
     SPGActuatorProtocol,
     SPG_IQ_COUNT_TO_AMP,

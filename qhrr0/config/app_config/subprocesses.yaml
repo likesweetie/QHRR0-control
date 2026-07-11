@@ -18,11 +18,11 @@ processes:
     working_dir: "."
     env_vars: {}
 
-  - name: "aux_reader"
+  - name: "joystick_reader"
     command:
       - "python3"
       - "-m"
-      - "robot_controller.subprocesses.aux_reader.main"
+      - "qhrr0.app.robot_controller.subprocesses.joystick_reader.main"
       - "--controller-config-key"
       - "robot_controller"
       - "--joystick-dev"
