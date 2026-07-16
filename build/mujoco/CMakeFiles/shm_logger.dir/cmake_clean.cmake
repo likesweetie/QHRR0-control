@@ -1,5 +1,4 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/shm_logger.dir/link.d"
   "CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o"
   "CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o.d"
   "shm_logger"

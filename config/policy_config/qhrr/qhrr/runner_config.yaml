@@ -18,10 +18,10 @@ joint_idx_conversion_isaaclab_to_rainbow:
 default_joint_angle:
   - -0.0
   - -1.2
-  - 2.0
+  - 1.7
 
 
-action_scale: 0.15
+action_scale: 0.5
 
 action_clip : 100
 

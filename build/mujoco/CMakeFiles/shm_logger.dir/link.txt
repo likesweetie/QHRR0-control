@@ -1,1 +1,1 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/shm_logger.dir/link.d CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o -o shm_logger  -lpthread
+/usr/bin/c++ CMakeFiles/shm_logger.dir/app/shm_logger/main.cpp.o -o shm_logger  -lpthread 
