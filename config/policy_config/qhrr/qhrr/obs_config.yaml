@@ -14,7 +14,7 @@ observations:
     ]
 
   scales:
-    base_ang_vel_: 0.05
+    base_ang_vel_: 0.25
     projected_gravity: 1.0
     lin_vel_x_commands_: 2.0
     lin_vel_y_commands_: 2.0
